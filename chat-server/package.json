@@ -1,0 +1,24 @@
+{
+  "name": "chat-server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "build/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "tsc && node ./build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@lucia-auth/adapter-sqlite": "^2.0.1",
+    "better-sqlite3": "^9.0.0",
+    "lucia": "^2.7.4",
+    "polka": "^0.5.2",
+    "socket.io": "^4.7.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.6",
+    "@types/polka": "^0.5.6"
+  }
+}
