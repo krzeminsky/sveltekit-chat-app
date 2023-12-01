@@ -19,6 +19,7 @@ console.log('Websocket server started!');
 
 const MAX_CHAT_NAME_LENGTH = 32;
 const MAX_NICKANAME_LENGTH = 16;
+const DEBUG_HIGHEST_REACTION_INDEX = 3;
 
 //
 //
@@ -28,6 +29,8 @@ const MAX_NICKANAME_LENGTH = 16;
 //
 
 // TODO: Implement caching using redis for common db calls like 'getChatMembers'
+// TODO: Extract some db checks into transactions, events like 'addChatMember' do 4+ db calls, which is a lot of round trips
+// ! usernames cannot contain: , :
 
 function broadcastEvent(targets: string[], eventName: string, ...args: any) {
     for (const t of targets) io.to(t).emit(eventName, args);
@@ -61,7 +64,8 @@ io.on('connection', socket => {
 
             chatId = target;
         } else if (typeof target === "string") {
-            if (!dbCall.userExists(target)) return;
+            const otherBlockList = dbCall.getUserBlockList(target);
+            if (!otherBlockList || otherBlockList.includes(name)) return;
 
             chatId = dbCall.getPrivateChatId(name, target)??dbCall.createChat([name, target]);
         } else return;
@@ -79,6 +83,25 @@ io.on('connection', socket => {
         } catch {
             return;
         }
+    });
+
+    socket.on('getMessages', (chatId: number, offset: number, callback) => {
+        if (isNaN(chatId) || isNaN(offset) || typeof callback !== "function" || !dbCall.isChatMember(name, chatId)) return;
+
+        callback(dbCall.getChatMessages(chatId, offset, dbCall.getChatMemberBreakPoint(name, chatId)));
+    });
+
+    socket.on('getAttachment', (attachmentId: number, callback) => {
+        if (isNaN(attachmentId) || typeof callback !== "function") return;
+
+        const data = dbCall.getAttachmentData(attachmentId);
+        if (!data) return callback(null);
+
+        if (data.chat_id && !dbCall.isChatMember(name, data.chat_id)) return callback(null);
+
+        const attachment = dbCall.getAttachment(attachmentId);
+
+        callback(new Blob([attachment], { type: data.type }))
     });
 
     // ? call callback on success
@@ -122,7 +145,7 @@ io.on('connection', socket => {
     });
 
     socket.on('leaveGroupChat', (chatId: number) => {
-        if (isNaN(chatId) || dbCall.isChatPrivate(chatId)) return;
+        if (isNaN(chatId) || dbCall.isChatPrivate(chatId) || !dbCall.isChatMember(name, chatId)) return;
 
         const rank = dbCall.getChatMemberRank(name, chatId);
         dbCall.removeChatMember(chatId, name);
@@ -132,22 +155,51 @@ io.on('connection', socket => {
 
         if (members.length == 0) {
             dbCall.deleteChat(chatId);
-            io.to(name).emit('memberLeft', chatId, name);
+            io.to(name).emit('chatMemberLeft', chatId, name);
 
             return;
         } else if (rank == 2) {
             newOwner = dbCall.transferChatOwnership(chatId);
         }
         
-        broadcastEvent(members, 'memberLeft', chatId, name, newOwner);
-    })
+        broadcastEvent(members, 'chatMemberLeft', chatId, name, newOwner);
+    });
+
+    // ? anyone can add chat members
+    socket.on('addChatMember', (chatId: number, other: string) => {
+        if (isNaN(chatId) 
+            || typeof other !== "string" 
+            || dbCall.isChatPrivate(chatId)
+            || !dbCall.isChatMember(name, chatId)
+            || !dbCall.userExists(other)
+            || dbCall.isChatMember(other, chatId)) return;
+
+        dbCall.addChatMember(chatId, other);
+        broadcastEvent(dbCall.getChatMembers(chatId), 'chatMemeberAdded', other);
+    });
+
+    // ? but only admins can remove them
+    socket.on('removeChatMember', (chatId: number, other: string) => {
+        if (isNaN(chatId) || typeof other !== "string" || !dbCall.isChatMember(other, chatId)) return;
+
+        const rank = dbCall.getChatMemberRank(name, chatId);
+        if (!rank || rank === 0) return; // ? socket is not a chat member or is not an admin
+        
+        const otherRank = dbCall.getChatMemberRank(other, chatId);
+        if (!otherRank || otherRank === 2) return; // ? can't remove the chat owner
+
+        dbCall.removeChatMember(chatId, other);
+
+        // ? what chat, who got removed, who removed the member
+        broadcastEvent(dbCall.getChatMembers(chatId), 'chatMemberRemoved', chatId, other, name);
+    });
 
     socket.on('getChatData', (chatId: number, callback) => {
         if (isNaN(chatId) || typeof callback !== "function" || !dbCall.isChatMember(name, chatId)) return;
 
         const data = dbCall.getChatData(chatId);
 
-        if (!data) return;
+        if (!data) return callback(null);
 
         callback(data);
     });
@@ -183,7 +235,8 @@ io.on('connection', socket => {
         broadcastEvent(dbCall.getChatMembers(chatId), 'chatCoverSet', chatId, res);
     });
 
-    socket.on('setNickname', (chatId: number, other: string, nickname: string|null) => {
+    // ? anyone can change nicknames
+    socket.on('setChatNickname', (chatId: number, other: string, nickname: string|null) => {
         if (isNaN(chatId) 
             || typeof other !== "string" 
             || !dbCall.isChatMember(name, chatId) 
@@ -194,10 +247,78 @@ io.on('connection', socket => {
 
         dbCall.updateChatMemberNickname(chatId, other, nickname);
 
-        broadcastEvent(dbCall.getChatMembers(chatId), 'nickanameSet', chatId, other, nickname);
+        broadcastEvent(dbCall.getChatMembers(chatId), 'chatNicknameSet', chatId, other, nickname);
     });
 
-    socket.on('setRank', (chatId: number, other: string) => {
+    socket.on('changeChatRank', (chatId: number, other: string) => {
+        if (isNaN(chatId) 
+            || typeof other !== "string" 
+            || name == other) return;
 
-    })
+        const userRank = dbCall.getChatMemberRank(name, chatId);
+        if (!userRank || userRank === 0) return;
+
+        const otherRank = dbCall.getChatMemberRank(other, chatId);
+        if (!otherRank || otherRank === 2) return;
+
+        const rank = +(otherRank !== 1);
+
+        dbCall.setChatMemberRank(other, chatId, rank);
+
+        broadcastEvent(dbCall.getChatMembers(chatId), 'chatRankChanged', chatId, other, rank);
+    });
+
+    // * can make it more efficient by not being lazy
+    socket.on('changeUserBlockState', (other: string, callback) => {
+        if (typeof other !== "string" || typeof callback !== "function" || !dbCall.userExists(other)) return;
+
+        const blockList = dbCall.getUserBlockList(name)!.split(',');
+
+        let state;
+        if (blockList.includes(other)) {
+            blockList.splice(blockList.indexOf(other), 1);
+            state = false;
+        }
+        else {
+            blockList.push(other);
+            state = true;
+        }
+
+        dbCall.setUserBlockList(name, blockList.join(','));
+        
+        callback();
+
+        // ? blocked by, block state
+        io.to(other).emit('changedBlockState', name, state);
+    });
+
+    // ? if reactionId is undefined|null then the user's reaction to this message should be deleted (if it exists)
+    // ? reactions encoding: usernameA:reactionId,usernameB:reactionId
+    // * can make it more efficient by not being lazy
+    socket.on('setMessageReaction', (messageId: number, reactionId: number) => {
+        if (isNaN(messageId)) return;
+
+        const data = dbCall.getMessageReactionsAndChatId(messageId);
+        if (!data || !dbCall.isChatMember(name, data.chat_id)) return;
+
+        const reactions = data.reactions.split(',');
+        for (let i = 0; i < reactions.length; i++) {
+            if (reactions[i].includes(name)) {
+                if (typeof reactionId === "number" && reactionId <= DEBUG_HIGHEST_REACTION_INDEX) reactions[i] = `${name}:${reactionId}`;
+                else reactions[i] = '';
+
+                dbCall.setMessageReactions(messageId, reactions.join(','));
+
+                broadcastEvent(dbCall.getChatMembers(data.chat_id), 'messageReactionSet', name, messageId, reactionId);
+
+                return;
+            }
+        }
+
+        if (typeof reactionId === "number" && reactionId <= DEBUG_HIGHEST_REACTION_INDEX) return;
+
+        reactions.push(`${name}:${reactionId}`);
+        dbCall.setMessageReactions(messageId, reactions.join(','));
+        broadcastEvent(dbCall.getChatMembers(data.chat_id), 'messageReactionSet', name, messageId, reactionId);
+    });
 });

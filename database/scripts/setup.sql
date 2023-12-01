@@ -25,7 +25,6 @@ CREATE TABLE chat (
     private BIT NOT NULL,
 
     name TEXT,
-    nicknames TEXT, 
     cover_id INTEGER
 );
 
@@ -48,7 +47,7 @@ CREATE TABLE message (
     content TEXT NOT NULL,
     is_attachment BIT NOT NULL,
     timestamp INTEGER NOT NULL,
-    reactions TEXT,
+    reactions TEXT NOT NULL,
 
     FOREIGN KEY (chat_id) REFERENCES chat(id),
     FOREIGN KEY (username) REFERENCES user(username)
@@ -56,8 +55,6 @@ CREATE TABLE message (
 
 CREATE TABLE attachment (
     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    chat_id INTEGER NOT NULL ON DELETE CASCADE,
+    chat_id INTEGER,
     type TEXT NOT NULL,
-
-    FOREIGN KEY (chat_id) REFERENCES chat(id)
 );

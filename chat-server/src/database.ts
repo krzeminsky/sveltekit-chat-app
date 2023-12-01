@@ -44,18 +44,20 @@ const getChatMembersQuery = db.prepare('SELECT username FROM chat_member WHERE c
 const getChatMessagesQuery = db.prepare(`
     SELECT *
     FROM message
-    WHERE chat_id = ?
+    WHERE chat_id = ? AND id > ?
     ORDER BY id DESC
     LIMIT 10
     OFFSET ?
 `);
+
+const getChatBreakPointQuery = db.prepare("SELECT break_point FROM chat_member WHERE chat_id = ? AND username = ?").pluck(true);
 
 const getLatestChatMessagesTransaction = db.transaction((username: string) => {
     const chats = getLatestChatsQuery.all(username) as Chat[];
 
     const res: { chat: Chat, messages: Message[] }[] = [];
     for (const c of chats) {
-        res.push({ chat: c, messages: getChatMessagesQuery.all(c.id, 0) as Message[] });
+        res.push({ chat: c, messages: getChatMessagesQuery.all(c.id, getChatBreakPointQuery.get(c.id, username), 0) as Message[] });
     }
 
     return res;
@@ -84,7 +86,7 @@ const insertChatTransaction = db.transaction((members: string[]) => {
 
 const isChatMemberQuery = db.prepare("SELECT 1 FROM chat_member WHERE username = ? AND chat_id = ?");
 
-const insertMessageStmnt = db.prepare("INSERT INTO message VALUES(NULL, ?, ?, ?, ?, ?, NULL)");
+const insertMessageStmnt = db.prepare(`INSERT INTO message VALUES(NULL, ?, ?, ?, ?, ?, "")`);
 
 const insertAttachmentStmnt = db.prepare("INSERT INTO attachment VALUES(NULL, ?, ?)");
 
@@ -109,18 +111,6 @@ const updateChatBreakPointStmnt = db.prepare("UPDATE chat_member SET break_point
 const getLastChatMessageIdQuery = db.prepare("SELECT id FROM message WHERE chat_id = ? ORDER BY id DESC LIMIT 1").pluck(true);
 
 const deleteChatStmnt = db.prepare("DELETE FROM chat WHERE id = ?");
-const getChatAttachmentIdsQuery = db.prepare("SELECT id FROM attachment WHERE chat_id = ?").pluck(true);
-
-
-const deleteChatTransaction = db.transaction((chatId: number) => {
-    const attachmentsIds = getChatAttachmentIdsQuery.all(chatId);
-
-    for (const id of attachmentsIds) {
-        fs.unlinkSync(`${attachmentsPath}/${id}`);
-    }
-
-    deleteChatStmnt.run(chatId);
-});
 
 const getChatMembersDataQuery = db.prepare("SELECT username, rank, nickname FROM chat_member WHERE chat_id = ?");
 
@@ -145,13 +135,45 @@ const updateChatMemberNicknameStmnt = db.prepare("UPDATE chat_member SET nicknam
 const removeChatMemberStmnt = db.prepare("DELETE FROM chat_member WHERE chat_id = ? AND username = ?");
 
 const getOldestChatMemberQuery = db.prepare("SELECT username FROM chat_member WHERE chat_id = ? ORDER BY id DESC LIMIT 1").pluck(true);
+
 const updateChatMemberRankStmnt = db.prepare("UPDATE chat_member SET rank = ? WHERE chat_id = ? AND username = ?");
+
+const getUserBlockListQuery = db.prepare("SELECT block_list FROM user WHERE username = ?").pluck(true);
+
+const getAttachmentDataQuery = db.prepare("SELECT chat_id, type FROM attachment WHERE id = ?");
+
+const setUserBlockListStmnt = db.prepare("UPDATE user SET block_list = ? WHERE username = ?");
+
+const getMessageReactionsAndChatIdStmnt = db.prepare("SELECT chat_id, reactions FROM message WHERE id = ?");
+
+const setMessageReactionsStmnt = db.prepare("UPDATE message SET reactions = ? WHERE id = ?");
+
+const getChatAttachmentIdsQuery = db.prepare("SELECT id FROM attachment WHERE chat_id = ?").pluck(true);
+const deleteAttachmentStmnt = db.prepare("DELETE FROM attachment WHERE id = ?");
+
+const deleteChatTransaction = db.transaction((chatId: number) => {
+    const attachmentsIds = getChatAttachmentIdsQuery.all(chatId);
+    for (const id of attachmentsIds) {
+        fs.unlinkSync(`${attachmentsPath}/${id}`);
+        deleteAttachmentStmnt.run(id);
+    }
+
+    deleteChatStmnt.run(chatId);
+});
 
 const dbCall = {
     userExists(username: string) {
         return userExistsQuery.get(username) == 1;
     },
+
+    getUserBlockList(username: string) {
+        return getUserBlockListQuery.get(username) as string|undefined;
+    },
     
+    setUserBlockList(username: string, blockList: string) {
+        setUserBlockListStmnt.run(blockList, username);
+    },
+
     isChatMember(username: string, chatId: number) {
         return isChatMemberQuery.get(username, chatId) == 1;
     },
@@ -162,6 +184,14 @@ const dbCall = {
     
     getLatestChatMessages(username: string) {
         return getLatestChatMessagesTransaction(username);
+    },
+
+    getChatMemberBreakPoint(username: string, chatId: number) {
+        return getChatBreakPointQuery.get(chatId, username) as number|undefined;
+    },
+
+    getChatMessages(chatId: number, offset: number, breakPoint = 0) {
+        return getChatMessagesQuery.all(chatId, breakPoint, offset) as Message[];
     },
 
     getChatMembers(id: number) {
@@ -195,7 +225,7 @@ const dbCall = {
         return message;
     },
 
-    async insertAttachment(chatId: number, attachment: Blob) {
+    async insertAttachment(chatId: number|null, attachment: Blob) {
         if (!(attachment instanceof Blob)) throw Error;
         
         const id = insertAttachmentStmnt.run(chatId, attachment.type).lastInsertRowid;
@@ -203,6 +233,14 @@ const dbCall = {
         fs.writeFileSync(`${attachmentsPath}/${id}`, Buffer.from(await attachment.arrayBuffer()));
 
         return id;
+    },
+
+    getAttachmentData(id: number) {
+        return getAttachmentDataQuery.get(id) as { chat_id: number|null, type: string }|undefined;
+    },
+
+    getAttachment(id: number) {
+        return fs.readFileSync(`${attachmentsPath}/${id}`);
     },
 
     getMessageOwner(id: number) {
@@ -215,6 +253,10 @@ const dbCall = {
 
     getChatMemberRank(username: string, chatId: number) {
         return getChatMemberRankQuery.get(username, chatId) as number|undefined;
+    },
+
+    setChatMemberRank(username: string, chatId: number, rank: number) {
+        updateChatMemberRankStmnt.run(rank, chatId, username);
     },
 
     updateChatBreakPoint(username: string, chatId: number) {
@@ -258,11 +300,23 @@ const dbCall = {
     },
 
     transferChatOwnership(chatId: number) {
-        const nextOwner = getOldestChatMemberQuery.get(chatId) as string|undefined;
+        const nextOwner = getOldestChatMemberQuery.get(chatId) as string;
 
-        updateChatMemberRankStmnt.run(2, chatId, nextOwner);
+        this.setChatMemberRank(nextOwner, chatId, 2);
 
         return nextOwner;
+    },
+
+    addChatMember(chatId: number, username: string) {
+        insertChatMemberStmnt.run(username, chatId, 0);
+    },
+
+    getMessageReactionsAndChatId(messageId: number) {
+        return getMessageReactionsAndChatIdStmnt.get(messageId) as { chat_id: number, reactions: string }|undefined;
+    },
+
+    setMessageReactions(messageId: number, reactions: string) {
+        setMessageReactionsStmnt.run(reactions, messageId);
     }
 }
 
