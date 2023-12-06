@@ -53,6 +53,8 @@ io.use(async (socket, next) => {
 io.on('connection', socket => {
     const name = socket.data.name;
 
+    // TODO: add user searching, results should be returned as username + profile pic id
+
     socket.emit('connected', dbCall.getLatestChatMessages(name));
 
     socket.on('sendMessage', async (target: number|string, content: string|Blob) => {

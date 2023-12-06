@@ -1,6 +1,6 @@
 CREATE TABLE user (
     id TEXT NOT NULL PRIMARY KEY,
-    username TEXT NOT NULL,
+    username TEXT NOT NULL UNIQUE,
     block_list TEXT NOT NULL,
     avatar_id INTEGER
 );
@@ -30,31 +30,31 @@ CREATE TABLE chat (
 
 CREATE TABLE chat_member (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT NOT NULL ON DELETE CASCADE,
-    chat_id INTEGER NOT NULL ON DELETE CASCADE,
+    username TEXT NOT NULL,
+    chat_id INTEGER NOT NULL,
     rank INTEGER NOT NULL,
-    breaK_point INTEGER NOT NULL,
+    break_point INTEGER NOT NULL,
     nickname TEXT,
 
-    FOREIGN KEY (username) REFERENCES user(username),
-    FOREIGN KEY (chat_id) REFERENCES chat(id)
+    FOREIGN KEY (username) REFERENCES user(username) ON DELETE CASCADE,
+    FOREIGN KEY (chat_id) REFERENCES chat(id) ON DELETE CASCADE
 );
 
 CREATE TABLE message (
     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    chat_id INTEGER NOT NULL ON DELETE CASCADE,
+    chat_id INTEGER NOT NULL,
     username TEXT NOT NULL,
     content TEXT NOT NULL,
     is_attachment BIT NOT NULL,
     timestamp INTEGER NOT NULL,
     reactions TEXT NOT NULL,
 
-    FOREIGN KEY (chat_id) REFERENCES chat(id),
+    FOREIGN KEY (chat_id) REFERENCES chat(id) ON DELETE CASCADE,
     FOREIGN KEY (username) REFERENCES user(username)
 );
 
 CREATE TABLE attachment (
     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     chat_id INTEGER,
-    type TEXT NOT NULL,
+    type TEXT NOT NULL
 );

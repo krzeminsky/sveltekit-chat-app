@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import fs from "fs";
 
-const dataPath = '../../database';
+const dataPath = '../database';
 const attachmentsPath = `${dataPath}/attachments`;
 
 const db = Database(`${dataPath}/database.db`);
@@ -69,7 +69,7 @@ const insertChatMembersTransaction = db.transaction((chatId: number, members: st
     for (const m of members) insertChatMemberStmnt.run(m, chatId, 0);
 })
 
-const insertChatStmnt = db.prepare("INSERT INTO chat VALUES(NULL, ?, NULL, NULL, NULL)"); 
+const insertChatStmnt = db.prepare("INSERT INTO chat VALUES(NULL, ?, NULL, NULL)"); 
 
 const insertChatTransaction = db.transaction((members: string[]) => {
     const chatId = insertChatStmnt.run(+(members.length == 2)).lastInsertRowid as number;
@@ -86,7 +86,7 @@ const insertChatTransaction = db.transaction((members: string[]) => {
 
 const isChatMemberQuery = db.prepare("SELECT 1 FROM chat_member WHERE username = ? AND chat_id = ?");
 
-const insertMessageStmnt = db.prepare(`INSERT INTO message VALUES(NULL, ?, ?, ?, ?, ?, "")`);
+const insertMessageStmnt = db.prepare(`INSERT INTO message VALUES(NULL, ?, ?, ?, ?, ?, '')`);
 
 const insertAttachmentStmnt = db.prepare("INSERT INTO attachment VALUES(NULL, ?, ?)");
 
