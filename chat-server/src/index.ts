@@ -9,6 +9,11 @@ const { server } = polka().listen(port);
 console.log(`Listening on port ${port}!`);
 
 const io = new Server(server, {
+    cors: {
+        origin: "https://localhost:5173",
+        methods: ["GET", "POST"]
+    },
+
     pingTimeout: 4000,
     pingInterval: 5000,
     maxHttpBufferSize: 1024 * 1024 * 25 // ? 25 Mb
@@ -30,6 +35,7 @@ const DEBUG_HIGHEST_REACTION_INDEX = 3;
 
 // TODO: Implement caching using redis for common db calls like 'getChatMembers'
 // TODO: Extract some db checks into transactions, events like 'addChatMember' do 4+ db calls, which is a lot of round trips
+// TODO: add system messages like: x removed y from group chat
 // ! usernames cannot contain: , :
 
 function broadcastEvent(targets: string[], eventName: string, ...args: any) {
@@ -42,6 +48,7 @@ io.use(async (socket, next) => {
 
         socket.data.name = session.user.username;
         socket.join(socket.data.name);
+        console.log(`Socket connected: ${socket.data.name}`);
     
         return next();
     } catch {
@@ -53,9 +60,13 @@ io.use(async (socket, next) => {
 io.on('connection', socket => {
     const name = socket.data.name;
 
-    // TODO: add user searching, results should be returned as username + profile pic id
-
     socket.emit('connected', dbCall.getLatestChatMessages(name));
+
+    socket.on('searchChats', (search: string, callback) => {
+        if (typeof search !== "string" || typeof callback !== "function" || search.length <= 0 || search.length > 32) return;
+
+        callback(dbCall.searchChats(name, search.toLowerCase()));
+    });
 
     socket.on('sendMessage', async (target: number|string, content: string|Blob) => {
         if (!target || !content) return;
@@ -127,7 +138,10 @@ io.on('connection', socket => {
         const targets = [name, ...otherMembers];
         const id = dbCall.createChat(targets);
 
-        broadcastEvent(targets, 'groupChatCreated', id, name); // ? chatId, chat creator
+        const data = dbCall.getChatData(id);
+
+        // ? first member of targets is the creator
+        broadcastEvent(targets, 'groupChatCreated', data); // ? chatId, members
     });
 
     // ? if its a group chat and the socket is the creator of the group chat - delete the chat, if its a private convo - update the break point for the socket
@@ -177,7 +191,8 @@ io.on('connection', socket => {
             || dbCall.isChatMember(other, chatId)) return;
 
         dbCall.addChatMember(chatId, other);
-        broadcastEvent(dbCall.getChatMembers(chatId), 'chatMemeberAdded', other);
+        // ? chatId, who added, who got added
+        broadcastEvent(dbCall.getChatMembers(chatId), 'chatMemeberAdded', chatId, name, other);
     });
 
     // ? but only admins can remove them
@@ -192,8 +207,8 @@ io.on('connection', socket => {
 
         dbCall.removeChatMember(chatId, other);
 
-        // ? what chat, who got removed, who removed the member
-        broadcastEvent(dbCall.getChatMembers(chatId), 'chatMemberRemoved', chatId, other, name);
+        // ? chatId, who removed, who got removed
+        broadcastEvent([other, ...dbCall.getChatMembers(chatId)], 'chatMemberRemoved', chatId, name, other);
     });
 
     socket.on('getChatData', (chatId: number, callback) => {
@@ -215,26 +230,26 @@ io.on('connection', socket => {
 
         dbCall.updateChatName(chatId, chatName);
 
-        broadcastEvent(dbCall.getChatMembers(chatId), 'chatNameSet', chatId, chatName);
+        broadcastEvent(dbCall.getChatMembers(chatId), 'chatNameSet', chatId, name, chatName);
     });
 
     // ? anyone can change group chat photo
     socket.on('setChatCover', (chatId: number, chatCover: Blob|null) => {
         if (isNaN(chatId) || dbCall.isChatPrivate(chatId) || !dbCall.isChatMember(name, chatId)) return;
 
-        let res;
+        let coverId;
 
         if (chatCover instanceof Blob) {
             if (chatCover.type.split('/')[0] == "image") return;
 
-            res = dbCall.setChatCover(chatId, chatCover);
+            coverId = dbCall.setChatCover(chatId, chatCover);
         } else {
             dbCall.removeChatCover(chatId);
 
-            res = null;
+            coverId = null;
         }
 
-        broadcastEvent(dbCall.getChatMembers(chatId), 'chatCoverSet', chatId, res);
+        broadcastEvent(dbCall.getChatMembers(chatId), 'chatCoverSet', chatId, name, coverId);
     });
 
     // ? anyone can change nicknames
@@ -249,7 +264,7 @@ io.on('connection', socket => {
 
         dbCall.updateChatMemberNickname(chatId, other, nickname);
 
-        broadcastEvent(dbCall.getChatMembers(chatId), 'chatNicknameSet', chatId, other, nickname);
+        broadcastEvent(dbCall.getChatMembers(chatId), 'chatNicknameSet', chatId, name, other, nickname);
     });
 
     socket.on('changeChatRank', (chatId: number, other: string) => {
@@ -267,7 +282,7 @@ io.on('connection', socket => {
 
         dbCall.setChatMemberRank(other, chatId, rank);
 
-        broadcastEvent(dbCall.getChatMembers(chatId), 'chatRankChanged', chatId, other, rank);
+        broadcastEvent(dbCall.getChatMembers(chatId), 'chatRankChanged', chatId, name, other, rank);
     });
 
     // * can make it more efficient by not being lazy
@@ -291,13 +306,13 @@ io.on('connection', socket => {
         callback();
 
         // ? blocked by, block state
-        io.to(other).emit('changedBlockState', name, state);
+        io.to(other).emit('userBlockStateChanged', name, state);
     });
 
     // ? if reactionId is undefined|null then the user's reaction to this message should be deleted (if it exists)
     // ? reactions encoding: usernameA:reactionId,usernameB:reactionId
     // * can make it more efficient by not being lazy
-    socket.on('setMessageReaction', (messageId: number, reactionId: number) => {
+    socket.on('setMessageReaction', (messageId: number, reactionId: number|null) => {
         if (isNaN(messageId)) return;
 
         const data = dbCall.getMessageReactionsAndChatId(messageId);
@@ -306,21 +321,27 @@ io.on('connection', socket => {
         const reactions = data.reactions.split(',');
         for (let i = 0; i < reactions.length; i++) {
             if (reactions[i].includes(name)) {
-                if (typeof reactionId === "number" && reactionId <= DEBUG_HIGHEST_REACTION_INDEX) reactions[i] = `${name}:${reactionId}`;
+                if (typeof reactionId === "number" && reactionId > 0 && reactionId <= DEBUG_HIGHEST_REACTION_INDEX) reactions[i] = `${name}:${reactionId}`;
                 else reactions[i] = '';
 
-                dbCall.setMessageReactions(messageId, reactions.join(','));
+                const res = reactions.join(',');
+                dbCall.setMessageReactions(messageId, res);
 
-                broadcastEvent(dbCall.getChatMembers(data.chat_id), 'messageReactionSet', name, messageId, reactionId);
+                broadcastEvent(dbCall.getChatMembers(data.chat_id), 'messageReactionSet', name, messageId, res);
 
                 return;
             }
         }
 
-        if (typeof reactionId === "number" && reactionId <= DEBUG_HIGHEST_REACTION_INDEX) return;
+        if (typeof reactionId !== "number" || reactionId < 0 || reactionId > DEBUG_HIGHEST_REACTION_INDEX) return;
 
         reactions.push(`${name}:${reactionId}`);
-        dbCall.setMessageReactions(messageId, reactions.join(','));
-        broadcastEvent(dbCall.getChatMembers(data.chat_id), 'messageReactionSet', name, messageId, reactionId);
+        const res = reactions.join(',')
+        dbCall.setMessageReactions(messageId, res);
+        broadcastEvent(dbCall.getChatMembers(data.chat_id), 'messageReactionsSet', data.chat_id, name, messageId, res);
+    });
+
+    socket.on('disconnect', () => {
+        console.log(`${name} disconnected`);
     });
 });

@@ -1,5 +1,6 @@
 import Database from "better-sqlite3";
 import fs from "fs";
+import { compareTwoStrings } from "string-similarity";
 
 const dataPath = '../database';
 const attachmentsPath = `${dataPath}/attachments`;
@@ -21,7 +22,27 @@ export type Message = {
     content: string,
     is_attachment: number,
     timestamp: number,
-    reactions?: string
+    reactions: string
+}
+
+export type ChatMember = {
+    username: string,
+    nickname?: string,
+    rank: number,
+    avatar_id: number|null
+}
+
+export type SearchResult = {
+    users: {
+        username: string,
+        avatar_id: number|null
+    }[],
+
+    chats?: {
+        id: number,
+        name: string,
+        cover_id: number|null
+    }[]
 }
 
 const userExistsQuery = db.prepare("SELECT 1 FROM user WHERE username = ?");
@@ -55,9 +76,9 @@ const getChatBreakPointQuery = db.prepare("SELECT break_point FROM chat_member W
 const getLatestChatMessagesTransaction = db.transaction((username: string) => {
     const chats = getLatestChatsQuery.all(username) as Chat[];
 
-    const res: { chat: Chat, messages: Message[] }[] = [];
+    const res: { chat: Chat, members: ChatMember[], messages: Message[] }[] = [];
     for (const c of chats) {
-        res.push({ chat: c, messages: getChatMessagesQuery.all(c.id, getChatBreakPointQuery.get(c.id, username), 0) as Message[] });
+        res.push({ chat: c, members: getChatMembersDataQuery.all(c.id) as ChatMember[], messages: getChatMessagesQuery.all(c.id, getChatBreakPointQuery.get(c.id, username), 0) as Message[] });
     }
 
     return res;
@@ -112,14 +133,14 @@ const getLastChatMessageIdQuery = db.prepare("SELECT id FROM message WHERE chat_
 
 const deleteChatStmnt = db.prepare("DELETE FROM chat WHERE id = ?");
 
-const getChatMembersDataQuery = db.prepare("SELECT username, rank, nickname FROM chat_member WHERE chat_id = ?");
+const getChatMembersDataQuery = db.prepare("SELECT cm.username, cm.rank, cm.nickname, u.avatar_id FROM chat_member AS cm JOIN user AS u ON u.username = cm.username WHERE chat_id = ?");
 
 const getChatDataTransaction = db.transaction((chatId: number) => {
     const chat = getChatQuery.get(chatId) as Chat|undefined;
 
     if (!chat) return undefined;
 
-    const members = getChatMembersDataQuery.all(chatId) as { username: string, nickname?: string, rank: number}[];
+    const members = getChatMembersDataQuery.all(chatId) as ChatMember[];
 
     return { chat, members };
 });
@@ -161,7 +182,60 @@ const deleteChatTransaction = db.transaction((chatId: number) => {
     deleteChatStmnt.run(chatId);
 });
 
-const dbCall = {
+
+const MAX_SEARCH_RESULTS = 5;
+const searchUsersQuery = db.prepare(`SELECT username, avatar_id FROM user WHERE LOWER(username) LIKE ? LIMIT ${MAX_SEARCH_RESULTS}`);
+const getUserGroupChatsByNameQuery = db.prepare(`
+    SELECT c.id, c.cover_id, c.name FROM chat AS c 
+    JOIN chat_member AS cm ON cm.id = c.id AND cm.username = ?
+    WHERE c.name IS NOT NULL AND LOWER(c.name) LIKE ? LIMIT ?
+`);
+
+const getUserGroupChatsWithNoNameQuery = db.prepare(`
+    SELECT c.id, c.cover_id, c.name FROM chat AS c
+    JOIN chat_member AS cm ON cm.id = c.id AND cm.username = ?
+    WHERE c.name IS NULL
+`);
+
+// ! I HAVE NO IDEA WHAT I'M DOING
+const getSearchResultsTransaction = db.transaction((username: string, search: string) => {
+    const searchParam = `${search}%`;
+    const users = searchUsersQuery.all(searchParam) as { username: string, avatar_id: number|null }[];
+
+    if (users.length < MAX_SEARCH_RESULTS) {
+        const chats = getUserGroupChatsByNameQuery.all(searchParam, MAX_SEARCH_RESULTS - users.length) as { id: number, cover_id: number|null, name: string }[];
+        let remaining = MAX_SEARCH_RESULTS - users.length - chats.length;
+
+        if (remaining > 0) { // ? try to find chats by members' usernames
+            const namelessChats = getUserGroupChatsWithNoNameQuery.all(username) as { id: number, cover_id: number|null, name: string }[];
+            const compressedSearch = search.replace(/\s+/g, '');
+            
+            for (let c of namelessChats) {
+                const members = getChatMembersQuery.all(c.id) as string[];
+                
+                const joinedMembers = members.join();
+
+                if (compareTwoStrings(compressedSearch, joinedMembers) > 0.5) {
+                    c.name = members.length > 3? `${members.join(', ')} and others` : members.join(', ');
+                    chats.push(c);
+
+                    remaining--;
+                    if (remaining === 0) break;
+                }
+            }
+        }
+
+        return { users, chats } as SearchResult
+    }
+
+    return { users } as SearchResult
+});
+
+const dbCall = {   
+    searchChats(username: string, search: string) {
+        return getSearchResultsTransaction(username, search);
+    },
+    
     userExists(username: string) {
         return userExistsQuery.get(username) == 1;
     },

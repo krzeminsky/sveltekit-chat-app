@@ -19,7 +19,7 @@ export const auth = lucia({
 		return {
 			username: data.username,
             blockList: data.block_list,
-            avatar_id: data.avatar_id
+            avatarId: data.avatar_id
 		};
 	}
 })
