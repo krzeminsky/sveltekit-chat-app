@@ -203,7 +203,7 @@ const getSearchResultsTransaction = db.transaction((username: string, search: st
     const users = searchUsersQuery.all(searchParam) as { username: string, avatar_id: number|null }[];
 
     if (users.length < MAX_SEARCH_RESULTS) {
-        const chats = getUserGroupChatsByNameQuery.all(searchParam, MAX_SEARCH_RESULTS - users.length) as { id: number, cover_id: number|null, name: string }[];
+        const chats = getUserGroupChatsByNameQuery.all(username, searchParam, MAX_SEARCH_RESULTS - users.length) as { id: number, cover_id: number|null, name: string }[];
         let remaining = MAX_SEARCH_RESULTS - users.length - chats.length;
 
         if (remaining > 0) { // ? try to find chats by members' usernames
@@ -216,7 +216,7 @@ const getSearchResultsTransaction = db.transaction((username: string, search: st
                 const joinedMembers = members.join();
 
                 if (compareTwoStrings(compressedSearch, joinedMembers) > 0.5) {
-                    c.name = members.length > 3? `${members.join(', ')} and others` : members.join(', ');
+                    c.name = members.join(', ');
                     chats.push(c);
 
                     remaining--;

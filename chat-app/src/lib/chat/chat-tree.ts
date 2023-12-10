@@ -16,6 +16,20 @@ export class ChatTree {
         this.count = 0;
     }
 
+    get name() {
+        return this.data.name??this.members.map(m => m.username).join(', ');
+    }
+
+    get firstMessagePreview() {
+        if (!this.firstMessage) return 'Chat started';
+        else {
+            const message = this.firstMessage.message;
+
+            if (message.is_attachment == 1) return `${message.username} sent an attachment`;
+            else return `${message.username}: ${message.content}`;
+        }
+    }
+
     // ? insert in the front
     insertMessage(message: Message) {
         const temp = this.firstMessage;
