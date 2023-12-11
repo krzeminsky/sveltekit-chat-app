@@ -4,6 +4,11 @@
     import type { Chat, Message, ChatMember, SearchResult } from "$lib/chat/types";
     import { ChatTree } from "$lib/chat/chat-tree";
     import { onDestroy } from "svelte";
+    import ChatListItem from "$lib/components/chat/chat-list-item.svelte";
+    import { TempChatTree } from "$lib/chat/temp-chat-tree";
+    import ChatCover from "$lib/components/chat/chat-cover.svelte";
+    import type { IChatTree } from "$lib/chat/ichat-tree";
+    import MessageBox from "$lib/components/chat/message-box.svelte";
 
     const ATTACHMENT_REQUEST_TIMEOUT_TIME = 5000; // ? 5s
 
@@ -12,14 +17,18 @@
     let chats = new Map<number, ChatTree>();
     let attachments = new Map<number, string>();
 
+    let currentChat: IChatTree|undefined;
+
     let searchValue = '';
     let searchTimer: NodeJS.Timeout;
     let searchResults: SearchResult|undefined;
 
+    let messageValue = '';
+
     $: {
         if (searchValue) {
             clearTimeout(searchTimer);
-            searchTimer = setTimeout(search, 2000);
+            searchTimer = setTimeout(search, 1000);
         }
     }
 
@@ -38,13 +47,46 @@
 
     //#region 
     socket.on('connected', (data: { chat: Chat, members: ChatMember[], messages: Message[] }[]) => {
+        console.log(data);
+        
         for (const d of data) {
-            chats.set(d.chat.id, new ChatTree(d.chat, d.members));
+            const chat = new ChatTree(d.chat, d.members);
+            chat.insertMessages(d.messages);
+            chats.set(d.chat.id, chat);
         }
+
+        chats = chats;
     });
 
-    socket.on('messageReceived', (message: Message) => {
-        getChat(message.chat_id, (c) => c.insertMessage(message));
+    // ? socket io sends objects as maps?
+
+    // TODO: refactor and fix all of these functions
+    // TODO: refactor and fix all of these functions
+    // TODO: refactor and fix all of these functions
+    // TODO: refactor and fix all of these functions
+    // TODO: refactor and fix all of these functions
+    // TODO: refactor and fix all of these functions
+    // TODO: refactor and fix all of these functions
+
+    socket.on('messageReceived', (response: any[]) => {
+        console.log('messageReceived');
+        
+        const message = response[0] as Message;
+
+        console.log(message);
+
+        getChat(message.chat_id, (c, _) => {
+            console.log('inserting message');
+
+            if (c.data.private && currentChat instanceof TempChatTree) {
+                const other = c.members[0].username == data.user.username? c.members[1] : c.members[0];
+                if (currentChat.getName(data.user.username) == other.username) currentChat = c;
+            }
+            
+            c.insertMessage(message)
+        });
+
+        currentChat = currentChat;
     });
 
     socket.on('messageDeleted', (messageId: number, chatId: number) => {
@@ -127,7 +169,14 @@
     });
     //#endregion
 
-    function getChat(chatId: number, callback: (chat: ChatTree, newChat: boolean) => void) {
+    function getChat(chatId: number, callback: (chat: ChatTree, newChat: boolean) => void) {       
+        // ! problem 1: getChatdata does not return a response
+        // ! problem 2: chats does not contain chat id
+
+        console.log(chats);
+        console.log(chatId);
+        console.log(chats.has(chatId));
+        
         if (!chats.has(chatId)) {
             socket.emit('getChatData', chatId, (data: { chat: Chat, members: ChatMember[] }) => {
                 if (!data) {
@@ -140,7 +189,9 @@
 
                 callback(chat, true);
             })
-        } else callback(chats.get(chatId)!, false);
+        } else {
+            callback(chats.get(chatId)!, false);
+        }
 
         chats = chats;
     }
@@ -181,23 +232,49 @@
         })
     }
 
-    async function getChatCover(chat: ChatTree) {
-        if (chat.data.private == 1) {
-            const avatarId = chat.members[0].username == data.user.username? chat.members[1].avatar_id : chat.members[0].avatar_id;
-            if (!avatarId) return 'default_avatar.png';
+    const DEFAULT_CHAT_COVER_URL = "default-chat-cover.png";
 
-            return getAttachment(avatarId).catch(() => "default_avatar.png");
+    async function getChatCover(source?: ChatTree|number|null) {
+        if (!source) return DEFAULT_CHAT_COVER_URL;
+        else if (typeof source === "number") {
+            return getAttachment(source).catch(() => DEFAULT_CHAT_COVER_URL);
+        }
+        else if (source.data.private == 1) {
+            const avatarId = source.members[0].username == data.user.username? source.members[1].avatar_id : source.members[0].avatar_id;
+            if (!avatarId) return DEFAULT_CHAT_COVER_URL;
+
+            return getAttachment(avatarId).catch(() => DEFAULT_CHAT_COVER_URL);
         } else {
-            if (!chat.data.cover_id) return 'default_avatar.png';
+            if (!source.data.cover_id) return DEFAULT_CHAT_COVER_URL;
 
-            return getAttachment(chat.data.cover_id).catch(() => "default_avatar.png");;
+            return getAttachment(source.data.cover_id).catch(() => DEFAULT_CHAT_COVER_URL);;
         }
     }
 
-    async function getAttachmentsAsChatCover(id?: number|null) {
-        if (!id) return 'default_avatar.png';
-        
-        return getAttachment(id).catch(() => "default_avatar.png");
+    function openChat(id: number) {
+        if (!chats.has(id)) {
+            getChat(id, (chat, _) => currentChat = chat);
+        } else currentChat = chats.get(id);
+    }
+
+    function openPrivateChat(otherUsername: string, coverId: number|null) {
+        socket.emit('getPrivateChatData', otherUsername, (data: { chat: Chat, members: ChatMember[] }) => {
+            if (!data) currentChat = new TempChatTree(otherUsername, coverId);
+            else {
+                const chat = new ChatTree(data.chat, data.members);
+                chats.set(chat.data.id, chat);
+
+                chats = chats;
+                currentChat = chat;
+            }
+        });
+    }
+
+    function sendMessage() {
+        if (!messageValue || !currentChat) return;
+
+        console.log('sentMessage')
+        socket.emit('sendMessage', currentChat.getId(), messageValue);
     }
 </script>
 
@@ -208,109 +285,39 @@
         <input placeholder="Search" class="w-[90%] mt-4 px-4 py-2 border-2 border-indigo-500 rounded-3xl outline-none focus:border-indigo-800 transition-all" bind:value={searchValue}/>
 
         <!--List-->
-        <div class="relative w-[90%] my-5 flex-1 flex flex-col gap-2 overflow-y-auto">
-            <!--! MY FUCKING EYES-->
-            <!--TODO: EXTRACT INTO COMPONENTS-->
-            <!--TODO: EXTRACT INTO COMPONENTS-->
-            <!--TODO: EXTRACT INTO COMPONENTS-->
-            <!--TODO: EXTRACT INTO COMPONENTS-->
-            <!--TODO: EXTRACT INTO COMPONENTS-->
-            <!--TODO: EXTRACT INTO COMPONENTS-->
-            <!--TODO: EXTRACT INTO COMPONENTS-->
-            <!--TODO: EXTRACT INTO COMPONENTS-->
-            <!--TODO: EXTRACT INTO COMPONENTS-->
-            <!--TODO: EXTRACT INTO COMPONENTS-->
-            <!--TODO: EXTRACT INTO COMPONENTS-->
-            <!--TODO: EXTRACT INTO COMPONENTS-->
-            <!--TODO: EXTRACT INTO COMPONENTS-->
-            <!--TODO: EXTRACT INTO COMPONENTS-->
-            <!--TODO: EXTRACT INTO COMPONENTS-->
-            <!--TODO: EXTRACT INTO COMPONENTS-->
-            <!--TODO: EXTRACT INTO COMPONENTS-->
-            <!--TODO: EXTRACT INTO COMPONENTS-->
-            <!--TODO: EXTRACT INTO COMPONENTS-->
-            <!--TODO: EXTRACT INTO COMPONENTS-->
-            <!--TODO: EXTRACT INTO COMPONENTS-->
-            <!--TODO: EXTRACT INTO COMPONENTS-->
-            <!--TODO: EXTRACT INTO COMPONENTS-->
-            
+        <div class="relative w-[90%] my-5 flex-1 flex flex-col gap-2 overflow-y-auto">      
             {#if searchValue}
             {#if searchResults}
             
                 {#each searchResults.users as u}
-                <div class="w-full h-16">
-                    {#await getAttachmentsAsChatCover(u.avatar_id)}
-                    <div class="w-14 h-14">
-                        <div role="status" class="relative"> <!--Copied from submit-button-->
-                            <svg aria-hidden="true" class="w-6 h-6 mx-auto my-auto text-transparent animate-spin fill-white" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="currentColor"/>
-                                <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentFill"/>
-                            </svg>
-                        </div>
-                    </div>
-                    {:then src}
-                    <img {src} alt="avatar" class="rounded-full h-14 m-1 mr-2 float-left"/>
-                    {/await}
-
-                    <h1 class="text-lg overflow-ellipsis overflow-hidden whitespace-nowrap h-16 leading-[64px]">{u.username}</h1>
-                </div>
+                <ChatListItem chatCoverUrl={getChatCover(u.avatar_id)} name={u.username} onClick={() => openPrivateChat(u.username, u.avatar_id)}/>
                 {/each}
 
                 {#if searchResults.chats}
                 {#each searchResults.chats as c}
-                <div class="w-full h-16">
-                    {#await getAttachmentsAsChatCover(c.cover_id)}
-                    <div class="w-14 h-14">
-                        <div role="status" class="relative"> <!--Copied from submit-button-->
-                            <svg aria-hidden="true" class="w-6 h-6 mx-auto my-auto text-transparent animate-spin fill-white" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="currentColor"/>
-                                <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentFill"/>
-                            </svg>
-                        </div>
-                    </div>
-                    {:then src}
-                    <img {src} alt="avatar" class="rounded-full h-14 m-1 mr-2 float-left"/>
-                    {/await}
-
-                    <h1 class="text-lg overflow-ellipsis overflow-hidden whitespace-nowrap h-16 leading-[64px]">{c.name}</h1>
-                </div>
+                <ChatListItem chatCoverUrl={getChatCover(c.cover_id)} name={c.name} onClick={() => openChat(c.id)}/>
                 {/each}
                 {/if}
 
             {/if}
             {:else}
                 {#if chats.size == 0}
-                <p class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-50 pointer-events-none">No chats found {":("}</p> <!--to fix highliting error-->
+                <h1 class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-50 pointer-events-none">No chats found {":("}</h1> <!--to fix highliting error-->
                 {:else}
 
                 {#each getSortedChatList(chats) as c}
-                <div class="w-full h-16">
-                    {#await getChatCover(c)}
-                    <div class="w-14 h-14">
-                        <div role="status" class="relative"> <!--Copied from submit-button-->
-                            <svg aria-hidden="true" class="w-6 h-6 mx-auto my-auto text-transparent animate-spin fill-white" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="currentColor"/>
-                                <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentFill"/>
-                            </svg>
-                        </div>
-                    </div>
-                    {:then src}
-                    <img {src} alt="avatar" class="rounded-full h-14 m-1 mr-2 float-left"/>
-                    {/await}
-
-                    <div>
-                        <h1 class="text-lg overflow-ellipsis overflow-hidden whitespace-nowrap">{c.name}</h1>
-                        
+                <ChatListItem chatCoverUrl={getChatCover(c)} name={c.getName(data.user.username)} onClick={() => openChat(c.data.id)}>
+                    <svelte:fragment slot="content">
                         {#if c.firstMessage}
                         <div class="flex content-between text-sm text-gray-400">
                             <h2 class="overflow-ellipsis overflow-hidden whitespace-nowrap flex-1">{c.firstMessagePreview}</h2>
-                            <h2 class="ml-1">{new Date(c.firstMessage.message.timestamp).toLocaleString()}</h2>
+                            <h2 class="ml-1 mr-2">{new Date(c.firstMessage.message.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</h2>
                         </div>
                         {:else}
                         <h2 class="text-sm text-gray-400 overflow-ellipsis overflow-hidden whitespace-nowrap">Chat started</h2>
-                        {/if}
-                    </div>
-                </div>
+                        {/if}  
+                    </svelte:fragment>
+                </ChatListItem>
                 {/each}
                 
                 {/if}
@@ -319,7 +326,30 @@
     </div>
 
     <!--Chat-->
-    <div class="flex-1 m-5 border-2 border-indigo-500 rounded-2xl">
+    <div class="flex-1 m-5 border-2 border-indigo-500 rounded-2xl flex flex-col">        
+        <!--TopBar-->
+        {#if currentChat}
+        <div class="w-full h-16 border-b-2 border-b-indigo-500 flex items-center pl-2">
+            <ChatCover urlPromise={getChatCover(currentChat.getCoverId())}/>
+            <h1 class="text-lg">{currentChat.getName(data.user.username)}</h1>
+        </div>
 
+        <!--Chat-->
+        <div class="w-full flex-1 overflow-y-auto p-2">
+            {#each currentChat.toArray() as m}
+            <MessageBox content={m.content} onDelete={m.username == data.user.username? () => { 
+                socket.emit('deleteMessage', m.id);
+            } : undefined }/>
+            {/each}
+        </div>
+
+        <!--MessageBox-->
+        <div class="w-full h-16 border-t-2 border-t-indigo-500 flex p-2 gap-2">
+            <input type="text" placeholder="Write a message!" autocomplete="off" class="rounded-2xl flex-1 p-2 border-2 border-gray-400" bind:value={messageValue}/>
+            <button class="bg-indigo-500 text-white p-2 rounded-2xl" on:click={sendMessage}>
+                Send
+            </button>
+        </div>
+        {/if}
     </div>
 </div>

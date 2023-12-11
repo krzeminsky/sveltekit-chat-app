@@ -73,12 +73,14 @@ io.on('connection', socket => {
 
         let chatId: number;
         if (typeof target === "number") {
-            if (!dbCall.isChatMember(name, target)) return;
+            if (!dbCall.isChatMember(name, target)) return console.log('user is not a member of this chat');
+
+            // TODO: IMPLEMENT USER BLOCK LIST HERE IF THE CHAT IS PRIVATE
 
             chatId = target;
         } else if (typeof target === "string") {
             const otherBlockList = dbCall.getUserBlockList(target);
-            if (!otherBlockList || otherBlockList.includes(name)) return;
+            if (typeof otherBlockList === "undefined" || otherBlockList.includes(name)) return console.log('user blocked');
 
             chatId = dbCall.getPrivateChatId(name, target)??dbCall.createChat([name, target]);
         } else return;
@@ -220,6 +222,16 @@ io.on('connection', socket => {
 
         callback(data);
     });
+
+    socket.on('getPrivateChatData', (other: string, callback) => {
+        if (typeof other !== "string" || typeof callback !== "function") return;
+
+        const id = dbCall.getPrivateChatId(name, other);
+        if (!id) return callback(null);
+
+        const data = dbCall.getChatData(id);
+        callback(data);
+    })
 
     // ? anyone can change group chat name
     socket.on('setChatName', (chatId: number, chatName: string|null) => {

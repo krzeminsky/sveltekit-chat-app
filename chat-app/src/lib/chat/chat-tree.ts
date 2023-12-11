@@ -1,6 +1,7 @@
 import type { Chat, ChatMember, Message } from "./types";
+import type { IChatTree } from "./ichat-tree";
 
-export class ChatTree {
+export class ChatTree implements IChatTree {
     data: Chat;
     members: ChatMember[];
 
@@ -16,10 +17,6 @@ export class ChatTree {
         this.count = 0;
     }
 
-    get name() {
-        return this.data.name??this.members.map(m => m.username).join(', ');
-    }
-
     get firstMessagePreview() {
         if (!this.firstMessage) return 'Chat started';
         else {
@@ -29,6 +26,19 @@ export class ChatTree {
             else return `${message.username}: ${message.content}`;
         }
     }
+
+    getName(username: string) {
+        if (this.data.private == 1) {
+            const other = this.members[0].username == username? this.members[1] : this.members[0];
+            return other.nickname??other.username;
+        } else {
+            return this.data.name??this.members.join(', ');
+        }
+    }
+
+    getCoverId() { return this.data.cover_id }
+
+    getId() { return this.data.id }
 
     // ? insert in the front
     insertMessage(message: Message) {

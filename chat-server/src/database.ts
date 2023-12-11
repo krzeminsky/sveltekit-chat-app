@@ -45,10 +45,10 @@ export type SearchResult = {
     }[]
 }
 
-const userExistsQuery = db.prepare("SELECT 1 FROM user WHERE username = ?");
+const userExistsQuery = db.prepare("SELECT 1 FROM user WHERE username = ?").pluck(true);
 
 const getLatestChatsQuery = db.prepare(`
-    SELECT c.*
+    SELECT DISTINCT c.*
     FROM chat AS c
     JOIN chat_member AS cm
     ON cm.chat_id = c.id AND cm.username = ?
@@ -105,7 +105,7 @@ const insertChatTransaction = db.transaction((members: string[]) => {
     return chatId;
 });
 
-const isChatMemberQuery = db.prepare("SELECT 1 FROM chat_member WHERE username = ? AND chat_id = ?");
+const isChatMemberQuery = db.prepare("SELECT 1 FROM chat_member WHERE username = ? AND chat_id = ?").pluck(true);
 
 const insertMessageStmnt = db.prepare(`INSERT INTO message VALUES(NULL, ?, ?, ?, ?, ?, '')`);
 
@@ -201,6 +201,13 @@ const getUserGroupChatsWithNoNameQuery = db.prepare(`
 const getSearchResultsTransaction = db.transaction((username: string, search: string) => {
     const searchParam = `${search}%`;
     const users = searchUsersQuery.all(searchParam) as { username: string, avatar_id: number|null }[];
+
+    for (let i = 0; i < users.length; i++) {
+        if (users[i].username == username) {
+            users.splice(i, 1);
+            break;
+        }
+    }
 
     if (users.length < MAX_SEARCH_RESULTS) {
         const chats = getUserGroupChatsByNameQuery.all(username, searchParam, MAX_SEARCH_RESULTS - users.length) as { id: number, cover_id: number|null, name: string }[];
