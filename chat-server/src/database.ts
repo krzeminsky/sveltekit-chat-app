@@ -55,7 +55,7 @@ const getLatestChatsQuery = db.prepare(`
     JOIN message AS m
     ON m.chat_id = c.id
     ORDER BY m.id DESC
-    LIMIT 10
+    LIMIT 20
 `);
 
 const getChatQuery = db.prepare('SELECT * FROM chat WHERE id = ?');
@@ -67,7 +67,7 @@ const getChatMessagesQuery = db.prepare(`
     FROM message
     WHERE chat_id = ? AND id > ?
     ORDER BY id DESC
-    LIMIT 10
+    LIMIT 30
     OFFSET ?
 `);
 

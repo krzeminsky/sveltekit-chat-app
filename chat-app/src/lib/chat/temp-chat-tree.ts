@@ -11,7 +11,7 @@ export class TempChatTree implements IChatTree {
     }
 
     getName(username: string) { return this.name }
-    getCoverId() { return this.coverId }
+    getCoverId(username: string) { return this.coverId }
 
     toArray() { return [] }
 

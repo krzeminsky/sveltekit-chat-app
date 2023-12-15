@@ -3,14 +3,14 @@
     import { io } from "socket.io-client";
     import type { Chat, Message, ChatMember, SearchResult } from "$lib/chat/types";
     import { ChatTree } from "$lib/chat/chat-tree";
-    import { onDestroy } from "svelte";
+    import { afterUpdate, onDestroy } from "svelte";
     import ChatListItem from "$lib/components/chat/chat-list-item.svelte";
     import { TempChatTree } from "$lib/chat/temp-chat-tree";
     import ChatCover from "$lib/components/chat/chat-cover.svelte";
-    import type { IChatTree } from "$lib/chat/ichat-tree";
+    import { isChatTree, type IChatTree } from "$lib/chat/ichat-tree";
     import MessageBox from "$lib/components/chat/message-box.svelte";
 
-    const ATTACHMENT_REQUEST_TIMEOUT_TIME = 5000; // ? 5s
+    const REQUEST_TIMEOUT_TIME = 5000; // ? 5s
 
     export let data: PageData;
 
@@ -25,6 +25,9 @@
 
     let messageValue = '';
 
+    let chatWindow: HTMLElement;
+    let pendingMessageRequest = false;
+
     $: {
         if (searchValue) {
             clearTimeout(searchTimer);
@@ -36,9 +39,10 @@
     // TODO: load messages
 
     const socket = io("http://localhost:3000", {
+
         auth: {
             sessionId: data.sessionId
-        }
+        },
     }); 
 
     onDestroy(() => {
@@ -46,9 +50,7 @@
     });
 
     //#region 
-    socket.on('connected', (data: { chat: Chat, members: ChatMember[], messages: Message[] }[]) => {
-        console.log(data);
-        
+    socket.on('connected', async (data: { chat: Chat, members: ChatMember[], messages: Message[] }[]) => {                 
         for (const d of data) {
             const chat = new ChatTree(d.chat, d.members);
             chat.insertMessages(d.messages);
@@ -58,47 +60,35 @@
         chats = chats;
     });
 
-    // ? socket io sends objects as maps?
-
-    // TODO: refactor and fix all of these functions
-    // TODO: refactor and fix all of these functions
-    // TODO: refactor and fix all of these functions
-    // TODO: refactor and fix all of these functions
-    // TODO: refactor and fix all of these functions
-    // TODO: refactor and fix all of these functions
-    // TODO: refactor and fix all of these functions
-
-    socket.on('messageReceived', (response: any[]) => {
-        console.log('messageReceived');
-        
-        const message = response[0] as Message;
-
-        console.log(message);
-
+    socket.on('messageReceived', (message: Message) => {    
         getChat(message.chat_id, (c, _) => {
-            console.log('inserting message');
-
             if (c.data.private && currentChat instanceof TempChatTree) {
                 const other = c.members[0].username == data.user.username? c.members[1] : c.members[0];
                 if (currentChat.getName(data.user.username) == other.username) currentChat = c;
             }
             
-            c.insertMessage(message)
+            c.pushMessage(message)
         });
 
         currentChat = currentChat;
     });
 
     socket.on('messageDeleted', (messageId: number, chatId: number) => {
-        chats.get(chatId)?.deleteMessage(messageId);
+        getChat(chatId, (c, _) => {
+            c.deleteMessage(messageId);
+        })
+
+        currentChat = currentChat;
     });
 
     socket.on('groupChatCreated', (data: { chat: Chat, members: ChatMember[] }) => {
         chats.set(data.chat.id, new ChatTree(data.chat, data.members));
+        chats = chats;
     });
 
     socket.on('groupChatDeleted', (chatId: number) => {
         chats.delete(chatId);
+        chats = chats;
     });
 
     socket.on('chatMemberLeft', (chatId: number, member: string, newOwner: string|undefined) => {
@@ -169,14 +159,7 @@
     });
     //#endregion
 
-    function getChat(chatId: number, callback: (chat: ChatTree, newChat: boolean) => void) {       
-        // ! problem 1: getChatdata does not return a response
-        // ! problem 2: chats does not contain chat id
-
-        console.log(chats);
-        console.log(chatId);
-        console.log(chats.has(chatId));
-        
+    function getChat(chatId: number, callback: (chat: ChatTree, newChat: boolean) => void) {          
         if (!chats.has(chatId)) {
             socket.emit('getChatData', chatId, (data: { chat: Chat, members: ChatMember[] }) => {
                 if (!data) {
@@ -188,12 +171,12 @@
                 chats.set(chatId, chat);
 
                 callback(chat, true);
+                chats = chats;
             })
         } else {
             callback(chats.get(chatId)!, false);
+            chats = chats;
         }
-
-        chats = chats;
     }
 
     function search() {
@@ -214,44 +197,47 @@
         })
     }
 
-    function getAttachment(id: number) {    
-        return new Promise<string>((resolve, reject) => {
-            if (attachments.has(id)) return resolve(attachments.get(id)!);
+    const DEFAULT_CHAT_COVER_URL = "default-chat-cover.png"; 
 
-            const timeout = setTimeout(reject, ATTACHMENT_REQUEST_TIMEOUT_TIME);
-            
-            socket.emit('getAttachment', id, (attachment: Blob|null) => {
+    async function getAttachment(id: number) {        
+        return new Promise<string>((resolve, reject) => {
+            if (attachments.has(id)) {
+                return resolve(attachments.get(id)!);
+            }
+
+            let timedOut = false;
+            const timeout = setTimeout(() => { reject(); timedOut = true; }, REQUEST_TIMEOUT_TIME);
+
+            // ? For some reason, sending a blob in an acknowledgment, causes the websocket server/client to go completely haywire
+            socket.emit('getAttachment', id, (data: { buffer: Buffer, type: string }|null) => { 
+                if (timedOut || !data) return;
+
                 clearTimeout(timeout);
-                if (!attachment) return reject();
                 
-                const url = window.URL.createObjectURL(attachment);
+                const blob = new Blob([data.buffer], { type: data.type})
+                const url = window.URL.createObjectURL(blob);
                 attachments.set(id, url);
- 
+
                 resolve(url);
             })
-        })
+        });
     }
 
-    const DEFAULT_CHAT_COVER_URL = "default-chat-cover.png";
+    async function getChatCover(source?: IChatTree|number|null) {
+        if (!source) {
+            return DEFAULT_CHAT_COVER_URL;
+        } else if (isChatTree(source)) {
+            const id = source.getCoverId(data.user.username);
+            if (!id) return DEFAULT_CHAT_COVER_URL;
 
-    async function getChatCover(source?: ChatTree|number|null) {
-        if (!source) return DEFAULT_CHAT_COVER_URL;
-        else if (typeof source === "number") {
-            return getAttachment(source).catch(() => DEFAULT_CHAT_COVER_URL);
-        }
-        else if (source.data.private == 1) {
-            const avatarId = source.members[0].username == data.user.username? source.members[1].avatar_id : source.members[0].avatar_id;
-            if (!avatarId) return DEFAULT_CHAT_COVER_URL;
-
-            return getAttachment(avatarId).catch(() => DEFAULT_CHAT_COVER_URL);
+            return getAttachment(id);
         } else {
-            if (!source.data.cover_id) return DEFAULT_CHAT_COVER_URL;
-
-            return getAttachment(source.data.cover_id).catch(() => DEFAULT_CHAT_COVER_URL);;
+            return getAttachment(source);
         }
     }
 
-    function openChat(id: number) {
+
+    function openChat(id: number) {      
         if (!chats.has(id)) {
             getChat(id, (chat, _) => currentChat = chat);
         } else currentChat = chats.get(id);
@@ -273,8 +259,45 @@
     function sendMessage() {
         if (!messageValue || !currentChat) return;
 
-        console.log('sentMessage')
         socket.emit('sendMessage', currentChat.getId(), messageValue);
+        messageValue = '';
+    }
+
+    // TODO: fix scrolling
+    async function onChatScroll(e: Event) {
+        if (pendingMessageRequest) return;
+
+        if ((chatWindow.scrollTop * -1 + chatWindow.clientHeight) > 0.9 * chatWindow.scrollHeight) {
+            const chat = currentChat as ChatTree; // temp chat is not scrollable
+
+            new Promise<void>((resolve, reject) => {
+                pendingMessageRequest = true;
+
+                let timedOut = false;
+                const timeout = setTimeout(() => {
+                        reject(); 
+                        timedOut = true; 
+                        pendingMessageRequest = false; 
+                    }, 
+                    REQUEST_TIMEOUT_TIME
+                );
+                
+                socket.emit("getMessages", chat.data.id, chat.count, (messages: Message[]) => {
+                    if (timedOut) return;
+                    clearTimeout(timeout);
+                    if (messages.length == 0) return; // * DEBUG DEBUG DEBUG
+
+                    getChat(chat.data.id, (c, _) => {
+                        c.insertMessages(messages);
+                    });
+
+                    currentChat = currentChat;
+
+                    resolve();
+                    pendingMessageRequest = false;
+                });
+            })
+        }
     }
 </script>
 
@@ -308,10 +331,10 @@
                 {#each getSortedChatList(chats) as c}
                 <ChatListItem chatCoverUrl={getChatCover(c)} name={c.getName(data.user.username)} onClick={() => openChat(c.data.id)}>
                     <svelte:fragment slot="content">
-                        {#if c.firstMessage}
+                        {#if c.lastMessage}
                         <div class="flex content-between text-sm text-gray-400">
                             <h2 class="overflow-ellipsis overflow-hidden whitespace-nowrap flex-1">{c.firstMessagePreview}</h2>
-                            <h2 class="ml-1 mr-2">{new Date(c.firstMessage.message.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</h2>
+                            <h2 class="ml-1 mr-2">{new Date(c.lastMessage.message.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</h2>
                         </div>
                         {:else}
                         <h2 class="text-sm text-gray-400 overflow-ellipsis overflow-hidden whitespace-nowrap">Chat started</h2>
@@ -330,13 +353,14 @@
         <!--TopBar-->
         {#if currentChat}
         <div class="w-full h-16 border-b-2 border-b-indigo-500 flex items-center pl-2">
-            <ChatCover urlPromise={getChatCover(currentChat.getCoverId())}/>
+            <ChatCover urlPromise={getChatCover(currentChat)}/>
             <h1 class="text-lg">{currentChat.getName(data.user.username)}</h1>
         </div>
 
         <!--Chat-->
-        <div class="w-full flex-1 overflow-y-auto p-2">
-            {#each currentChat.toArray() as m}
+        <div class="w-full flex-1 p-2 flex flex-col-reverse gap-1 overflow-y-auto" bind:this={chatWindow} on:scroll={onChatScroll}>
+            <!--This shi is a mess, improve it in client v2-->
+            {#each currentChat.toArray().reverse() as m (m.id)}
             <MessageBox content={m.content} onDelete={m.username == data.user.username? () => { 
                 socket.emit('deleteMessage', m.id);
             } : undefined }/>
@@ -345,7 +369,7 @@
 
         <!--MessageBox-->
         <div class="w-full h-16 border-t-2 border-t-indigo-500 flex p-2 gap-2">
-            <input type="text" placeholder="Write a message!" autocomplete="off" class="rounded-2xl flex-1 p-2 border-2 border-gray-400" bind:value={messageValue}/>
+            <input type="text" placeholder="Write a message!" autocomplete="off" class="rounded-2xl flex-1 p-2 border-2 border-gray-400" bind:value={messageValue} on:keydown={e => { if (e.key == "Enter") sendMessage() }}/>
             <button class="bg-indigo-500 text-white p-2 rounded-2xl" on:click={sendMessage}>
                 Send
             </button>

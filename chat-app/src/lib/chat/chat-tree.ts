@@ -18,9 +18,9 @@ export class ChatTree implements IChatTree {
     }
 
     get firstMessagePreview() {
-        if (!this.firstMessage) return 'Chat started';
+        if (!this.lastMessage) return 'Chat started';
         else {
-            const message = this.firstMessage.message;
+            const message = this.lastMessage.message;
 
             if (message.is_attachment == 1) return `${message.username} sent an attachment`;
             else return `${message.username}: ${message.content}`;
@@ -36,7 +36,13 @@ export class ChatTree implements IChatTree {
         }
     }
 
-    getCoverId() { return this.data.cover_id }
+    getCoverId(username: string) { 
+        if (this.data.private == 1) {
+            return this.members[0].username == username? this.members[1].avatar_id : this.members[0].avatar_id;
+        } else {
+            return this.data.cover_id;
+        }
+    }
 
     getId() { return this.data.id }
 
@@ -88,8 +94,29 @@ export class ChatTree implements IChatTree {
 
     deleteMessage(messageId: number) {
         let current = this.firstMessage;
+
         while (current) {
             if (current.message.id == messageId) {
+                if (current == this.firstMessage) {
+                    if (current.next) {
+                        this.firstMessage = current.next;
+                        current.next.previous = undefined;
+                    } else {
+                        this.firstMessage = undefined;
+                        this.lastMessage = undefined;
+                    }
+                }
+
+                if (current == this.lastMessage) {
+                    if (current.previous) {
+                        this.lastMessage = current.previous;
+                        current.previous.next = undefined;
+                    } else {
+                        this.firstMessage = undefined;
+                        this.lastMessage = undefined;
+                    }
+                }
+
                 if (current.previous) current.previous.next = current.next;
                 if (current.next) current.next.previous = current.previous;
 
@@ -114,7 +141,7 @@ export class ChatTree implements IChatTree {
 
         let current = this.firstMessage;
         while (current) {
-            res.push(current .message);
+            res.push(current.message);
             current = current.next;
         }
 

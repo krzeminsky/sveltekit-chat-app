@@ -39,7 +39,7 @@ const DEBUG_HIGHEST_REACTION_INDEX = 3;
 // ! usernames cannot contain: , :
 
 function broadcastEvent(targets: string[], eventName: string, ...args: any) {
-    for (const t of targets) io.to(t).emit(eventName, args);
+    for (const t of targets) io.to(t).emit(eventName, ...args);
 }
 
 io.use(async (socket, next) => {
@@ -110,13 +110,13 @@ io.on('connection', socket => {
         if (isNaN(attachmentId) || typeof callback !== "function") return;
 
         const data = dbCall.getAttachmentData(attachmentId);
+
         if (!data) return callback(null);
+        else if (data.chat_id && !dbCall.isChatMember(name, data.chat_id)) return callback(null);
 
-        if (data.chat_id && !dbCall.isChatMember(name, data.chat_id)) return callback(null);
+        const buffer = dbCall.getAttachment(attachmentId);
 
-        const attachment = dbCall.getAttachment(attachmentId);
-
-        callback(new Blob([attachment], { type: data.type }))
+        callback({ buffer, type: data.type });
     });
 
     // ? call callback on success
@@ -127,6 +127,8 @@ io.on('connection', socket => {
         if (!owner) return;
 
         if (name != owner.username) return;
+
+        dbCall.deleteMessage(messageId);
 
         broadcastEvent(dbCall.getChatMembers(owner.chat_id), 'messageDeleted', messageId, owner.chat_id);
     });
