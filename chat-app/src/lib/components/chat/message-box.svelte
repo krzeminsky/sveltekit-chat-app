@@ -1,10 +1,11 @@
 <script lang="ts">
     export let content: string;
+    export let owner: string;
     export let onDelete: (() => void)|undefined;
 </script>
 
 <div class="flex gap-2 {onDelete? 'flex-row-reverse' : ''}">
-    <div class="py-2 px-5 bg-indigo-500 text-white w-fit rounded-full">
+    <div class="{owner == ""? 'w-full text-center text-gray-500' : 'py-2 px-5 bg-indigo-500 text-white w-fit rounded-full'}">
         {content}
     </div>
 

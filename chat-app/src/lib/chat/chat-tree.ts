@@ -6,6 +6,7 @@ export class ChatTree implements IChatTree {
     members: ChatMember[];
 
     count: number;
+    hasFullHistory = false;
 
     firstMessage?: MessageNode;
     lastMessage?: MessageNode;
@@ -23,8 +24,13 @@ export class ChatTree implements IChatTree {
             const message = this.lastMessage.message;
 
             if (message.is_attachment == 1) return `${message.username} sent an attachment`;
-            else return `${message.username}: ${message.content}`;
+            else return `${message.username? `${message.username}: ` : ''}${message.content}`;
         }
+    }
+
+    getOtherMember(username: string) {
+        const other = this.members[0].username == username? this.members[1] : this.members[0];
+        return other.nickname??other.username;
     }
 
     getName(username: string) {
@@ -32,7 +38,7 @@ export class ChatTree implements IChatTree {
             const other = this.members[0].username == username? this.members[1] : this.members[0];
             return other.nickname??other.username;
         } else {
-            return this.data.name??this.members.join(', ');
+            return this.data.name??this.members.map(m => m.username).join(', ');
         }
     }
 

@@ -238,9 +238,15 @@ const getSearchResultsTransaction = db.transaction((username: string, search: st
     return { users } as SearchResult
 });
 
+const getUserAvatarIdQuery = db.prepare("SELECT avatar_id FROM user WHERE username = ?").pluck(true);
+
 const dbCall = {   
     searchChats(username: string, search: string) {
         return getSearchResultsTransaction(username, search);
+    },
+
+    getUserAvatarId(username: string) {
+        return getUserAvatarIdQuery.get(username) as number|null;
     },
     
     userExists(username: string) {

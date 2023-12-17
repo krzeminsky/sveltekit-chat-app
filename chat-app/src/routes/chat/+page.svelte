@@ -3,12 +3,13 @@
     import { io } from "socket.io-client";
     import type { Chat, Message, ChatMember, SearchResult } from "$lib/chat/types";
     import { ChatTree } from "$lib/chat/chat-tree";
-    import { afterUpdate, onDestroy } from "svelte";
+    import { onDestroy } from "svelte";
     import ChatListItem from "$lib/components/chat/chat-list-item.svelte";
     import { TempChatTree } from "$lib/chat/temp-chat-tree";
     import ChatCover from "$lib/components/chat/chat-cover.svelte";
     import { isChatTree, type IChatTree } from "$lib/chat/ichat-tree";
     import MessageBox from "$lib/components/chat/message-box.svelte";
+    import Dialog from "$lib/components/utils/dialog.svelte";
 
     const REQUEST_TIMEOUT_TIME = 5000; // ? 5s
 
@@ -27,6 +28,9 @@
 
     let chatWindow: HTMLElement;
     let pendingMessageRequest = false;
+
+    let showCreateGroupChatWindow = false;
+    let groupChatMembersInput = '';
 
     $: {
         if (searchValue) {
@@ -81,17 +85,21 @@
         currentChat = currentChat;
     });
 
-    socket.on('groupChatCreated', (data: { chat: Chat, members: ChatMember[] }) => {
-        chats.set(data.chat.id, new ChatTree(data.chat, data.members));
+    socket.on('groupChatCreated', (data: { chat: Chat, members: ChatMember[] }, systemMessage: Message) => {
+        const chat = new ChatTree(data.chat, data.members);
+        chat.pushMessage(systemMessage);
+
+        chats.set(data.chat.id, chat);
         chats = chats;
     });
 
     socket.on('groupChatDeleted', (chatId: number) => {
         chats.delete(chatId);
+        if (currentChat && currentChat.getId() === chatId) currentChat = undefined;
         chats = chats;
     });
 
-    socket.on('chatMemberLeft', (chatId: number, member: string, newOwner: string|undefined) => {
+    socket.on('chatMemberLeft', (chatId: number, member, newOwner: string|undefined, systemMessage: Message) => {
         getChat(chatId, (c, newChat) => {
             if (newChat) return;
             
@@ -100,48 +108,60 @@
             if (!newOwner) return;
 
             c.members.find(m => m.username === newOwner)!.rank = 2;
+            c.pushMessage(systemMessage);
         })
     });
 
-    socket.on('chatMemberAdded', (chatId: number, member: string, addedMember: string) => {
+    socket.on('chatMemberAdded', (chatId: number, addedMember: string, addedMemberAvatarId: number|null, systemMessage: Message) => {
         getChat(chatId, (c, newChat) => {
-            if (newChat) return;
-            c.members.push({ username: addedMember, rank: 0 });
+            if (newChat || addedMember == data.user.username) return;
+            c.members.push({ username: addedMember, rank: 0, avatar_id: addedMemberAvatarId });
+            c.pushMessage(systemMessage);
         });
     });
 
-    socket.on('chatMemberRemoved', (chatId: number, member: string, removedMember: string) => {
+    socket.on('chatMemberRemoved', (chatId: number, removedMember: string, systemMessage: Message) => {
         getChat(chatId, (c, newChat) => {
-            if (newChat) return;
+            if (removedMember == data.user.username) {
+                chats.delete(chatId);
+                if (currentChat && currentChat.getId() === chatId) currentChat = undefined;
+                return;
+            } else if (newChat) return;
+
             c.members.splice(c.members.findIndex(m => m.username === removedMember), 1);
+            c.pushMessage(systemMessage);
         });
     });
 
-    socket.on('chatNameSet', (chatId: number, member: string, chatName: string|null) => {
+    socket.on('chatNameSet', (chatId: number, chatName: string|null, systemMessage: Message) => {
         getChat(chatId, (c, newChat) => {
             if (newChat) return;
             c.data.name = chatName;
+            c.pushMessage(systemMessage);
         });
     });
 
-    socket.on('chatCoverSet', (chatId: number, member: string, coverId: number|null) => {
+    socket.on('chatCoverSet', (chatId: number, coverId: number|null, systemMessage: Message) => {
         getChat(chatId, (c, newChat) => {
             if (newChat) return;
             c.data.cover_id = coverId;
+            c.pushMessage(systemMessage);
         });
     });
 
-    socket.on('chatNicknameSet', (chatId: number, member: string, otherMember: string, nickanme: string|null) => {
+    socket.on('chatNicknameSet', (chatId: number, member: string, nickanme: string|null, systemMessage: Message) => {
         getChat(chatId, (c, newChat) => {
             if (newChat) return;
-            c.members.find(m => m.username === otherMember)!.nickname = nickanme;
+            c.members.find(m => m.username === member)!.nickname = nickanme;
+            c.pushMessage(systemMessage);
         });
     });
 
-    socket.on('chatRankChanged', (chatId: number, member: string, otherMember: string, rank: number) => {
+    socket.on('chatRankChanged', (chatId: number, member: string, rank: number, systemMessage: Message) => {
         getChat(chatId, (c, newChat) => {
             if (newChat) return;
-            c.members.find(m => m.username === otherMember)!.rank = rank;
+            c.members.find(m => m.username === member)!.rank = rank;
+            c.pushMessage(systemMessage);
         });
     });
 
@@ -149,7 +169,7 @@
         // TODO: Implement
     });
 
-    socket.on('messageReactionsSet', (chatId: number, member: string, messageId: number, reactions: string) => {
+    socket.on('messageReactionsSet', (chatId: number, messageId: number, reactions: string) => {
         getChat(chatId, (c, newChat) => {
             if (newChat) return;
 
@@ -264,11 +284,13 @@
     }
 
     // TODO: fix scrolling
-    async function onChatScroll(e: Event) {
+    async function onChatScroll(e: Event) {        
         if (pendingMessageRequest) return;
 
-        if ((chatWindow.scrollTop * -1 + chatWindow.clientHeight) > 0.9 * chatWindow.scrollHeight) {
+        if ((chatWindow.scrollTop * -1 + chatWindow.clientHeight) == chatWindow.scrollHeight) {
             const chat = currentChat as ChatTree; // temp chat is not scrollable
+
+            if (chat.hasFullHistory) return;
 
             new Promise<void>((resolve, reject) => {
                 pendingMessageRequest = true;
@@ -285,11 +307,14 @@
                 socket.emit("getMessages", chat.data.id, chat.count, (messages: Message[]) => {
                     if (timedOut) return;
                     clearTimeout(timeout);
-                    if (messages.length == 0) return; // * DEBUG DEBUG DEBUG
 
-                    getChat(chat.data.id, (c, _) => {
-                        c.insertMessages(messages);
-                    });
+                    if (messages.length == 0) {
+                        chat.hasFullHistory = true;
+                    } else {
+                        getChat(chat.data.id, (c, _) => {
+                            c.insertMessages(messages);
+                        });
+                    }
 
                     currentChat = currentChat;
 
@@ -352,16 +377,20 @@
     <div class="flex-1 m-5 border-2 border-indigo-500 rounded-2xl flex flex-col">        
         <!--TopBar-->
         {#if currentChat}
-        <div class="w-full h-16 border-b-2 border-b-indigo-500 flex items-center pl-2">
-            <ChatCover urlPromise={getChatCover(currentChat)}/>
-            <h1 class="text-lg">{currentChat.getName(data.user.username)}</h1>
+        <div class="w-full h-16 border-b-2 border-b-indigo-500 flex justify-between items-center pl-2">
+            <div class="flex items-center">
+                <ChatCover urlPromise={getChatCover(currentChat)}/>
+                <h1 class="text-lg">{currentChat.getName(data.user.username)}</h1>
+            </div>
+
+            <button class="text-white rounded-full p-1 px-3 bg-indigo-500 mr-4" on:click={() => showCreateGroupChatWindow = true}>Create group chat</button>
         </div>
 
         <!--Chat-->
         <div class="w-full flex-1 p-2 flex flex-col-reverse gap-1 overflow-y-auto" bind:this={chatWindow} on:scroll={onChatScroll}>
             <!--This shi is a mess, improve it in client v2-->
             {#each currentChat.toArray().reverse() as m (m.id)}
-            <MessageBox content={m.content} onDelete={m.username == data.user.username? () => { 
+            <MessageBox content={m.content} owner={m.username} onDelete={m.username == data.user.username? () => { 
                 socket.emit('deleteMessage', m.id);
             } : undefined }/>
             {/each}
@@ -377,3 +406,14 @@
         {/if}
     </div>
 </div>
+
+<Dialog bind:show={showCreateGroupChatWindow}>
+    <h1>Create group chat with</h1>
+    <input placeholder="Members separated by ," class="p-2 border-gray-500 rounded-2xl" bind:value={groupChatMembersInput}/>
+    <button class="bg-indigo-500 text-white w-full rounded-2xl p-2" on:click={() => {
+        socket.emit("createGroupChat", groupChatMembersInput.split(','));
+        showCreateGroupChatWindow = false;
+    }}>
+        Create
+    </button>
+</Dialog>

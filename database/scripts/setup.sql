@@ -49,8 +49,7 @@ CREATE TABLE message (
     timestamp INTEGER NOT NULL,
     reactions TEXT NOT NULL,
 
-    FOREIGN KEY (chat_id) REFERENCES chat(id) ON DELETE CASCADE,
-    FOREIGN KEY (username) REFERENCES user(username)
+    FOREIGN KEY (chat_id) REFERENCES chat(id) ON DELETE CASCADE
 );
 
 CREATE TABLE attachment (

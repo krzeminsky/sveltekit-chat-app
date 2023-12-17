@@ -144,8 +144,10 @@ io.on('connection', socket => {
 
         const data = dbCall.getChatData(id);
 
+        const systemMessage = dbCall.insertMessage("", `${name} created the group chat`, id, 0);
+
         // ? first member of targets is the creator
-        broadcastEvent(targets, 'groupChatCreated', data); // ? chatId, members
+        broadcastEvent(targets, 'groupChatCreated', data, systemMessage); // ? chatId, members
     });
 
     // ? if its a group chat and the socket is the creator of the group chat - delete the chat, if its a private convo - update the break point for the socket
@@ -182,7 +184,9 @@ io.on('connection', socket => {
             newOwner = dbCall.transferChatOwnership(chatId);
         }
         
-        broadcastEvent(members, 'chatMemberLeft', chatId, name, newOwner);
+        const systemMessage = dbCall.insertMessage("", `${members} left the group chat`, chatId, 0);
+
+        broadcastEvent(members, 'chatMemberLeft', chatId, name, newOwner, systemMessage);
     });
 
     // ? anyone can add chat members
@@ -195,8 +199,11 @@ io.on('connection', socket => {
             || dbCall.isChatMember(other, chatId)) return;
 
         dbCall.addChatMember(chatId, other);
+        
+        const systemMessage = dbCall.insertMessage("", `${name} added ${other} to the group chat`, chatId, 0);
+
         // ? chatId, who added, who got added
-        broadcastEvent(dbCall.getChatMembers(chatId), 'chatMemeberAdded', chatId, name, other);
+        broadcastEvent(dbCall.getChatMembers(chatId), 'chatMemeberAdded', chatId, other, dbCall.getUserAvatarId(other), systemMessage);
     });
 
     // ? but only admins can remove them
@@ -210,9 +217,11 @@ io.on('connection', socket => {
         if (!otherRank || otherRank === 2) return; // ? can't remove the chat owner
 
         dbCall.removeChatMember(chatId, other);
+        
+        const systemMessage = dbCall.insertMessage("", `${name} removed ${other} from the group chat`, chatId, 0);
 
         // ? chatId, who removed, who got removed
-        broadcastEvent([other, ...dbCall.getChatMembers(chatId)], 'chatMemberRemoved', chatId, name, other);
+        broadcastEvent([other, ...dbCall.getChatMembers(chatId)], 'chatMemberRemoved', chatId, other, systemMessage);
     });
 
     socket.on('getChatData', (chatId: number, callback) => {
@@ -243,8 +252,10 @@ io.on('connection', socket => {
         else chatName = chatName.slice(0, MAX_CHAT_NAME_LENGTH);
 
         dbCall.updateChatName(chatId, chatName);
+        
+        const systemMessage = dbCall.insertMessage("", !chatName? `${name} removed the chat name` : `${name} set the chat name to ${chatName}`, chatId, 0);
 
-        broadcastEvent(dbCall.getChatMembers(chatId), 'chatNameSet', chatId, name, chatName);
+        broadcastEvent(dbCall.getChatMembers(chatId), 'chatNameSet', chatId, chatName, systemMessage);
     });
 
     // ? anyone can change group chat photo
@@ -263,7 +274,9 @@ io.on('connection', socket => {
             coverId = null;
         }
 
-        broadcastEvent(dbCall.getChatMembers(chatId), 'chatCoverSet', chatId, name, coverId);
+        const systemMessage = dbCall.insertMessage("", !chatCover? `${name} removed the chat cover` : `${name} changed the chat cover`, chatId, 0);
+
+        broadcastEvent(dbCall.getChatMembers(chatId), 'chatCoverSet', chatId, coverId, systemMessage);
     });
 
     // ? anyone can change nicknames
@@ -277,8 +290,10 @@ io.on('connection', socket => {
         else nickname = null;
 
         dbCall.updateChatMemberNickname(chatId, other, nickname);
+        
+        const systemMessage = dbCall.insertMessage("", !nickname? `${name} removed ${other}'s nickname` : `${name} set ${other}'s nickname to ${nickname}`, chatId, 0);
 
-        broadcastEvent(dbCall.getChatMembers(chatId), 'chatNicknameSet', chatId, name, other, nickname);
+        broadcastEvent(dbCall.getChatMembers(chatId), 'chatNicknameSet', chatId, other, nickname, systemMessage);
     });
 
     socket.on('changeChatRank', (chatId: number, other: string) => {
@@ -295,8 +310,10 @@ io.on('connection', socket => {
         const rank = +(otherRank !== 1);
 
         dbCall.setChatMemberRank(other, chatId, rank);
+        
+        const systemMessage = dbCall.insertMessage("", rank == 0? `${name} demoted ${other}` : `${name} promoted ${other}`, chatId, 0);
 
-        broadcastEvent(dbCall.getChatMembers(chatId), 'chatRankChanged', chatId, name, other, rank);
+        broadcastEvent(dbCall.getChatMembers(chatId), 'chatRankChanged', chatId, other, rank, systemMessage);
     });
 
     // * can make it more efficient by not being lazy
@@ -352,7 +369,7 @@ io.on('connection', socket => {
         reactions.push(`${name}:${reactionId}`);
         const res = reactions.join(',')
         dbCall.setMessageReactions(messageId, res);
-        broadcastEvent(dbCall.getChatMembers(data.chat_id), 'messageReactionsSet', data.chat_id, name, messageId, res);
+        broadcastEvent(dbCall.getChatMembers(data.chat_id), 'messageReactionsSet', data.chat_id, messageId, res);
     });
 
     socket.on('disconnect', () => {
