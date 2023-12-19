@@ -68,7 +68,7 @@ io.on('connection', socket => {
         callback(dbCall.searchChats(name, search.toLowerCase()));
     });
 
-    socket.on('sendMessage', async (target: number|string, content: string|Blob) => {
+    socket.on('sendMessage', async (target: number|string, content: string|{ buffer: Buffer, type: string }) => {      
         if (!target || !content) return;
 
         let chatId: number;
@@ -90,7 +90,7 @@ io.on('connection', socket => {
         try {
             const message = dbCall.insertMessage(
                 name, 
-                isAttachment? (await dbCall.insertAttachment(chatId, content)).toString() : content, 
+                isAttachment? (await dbCall.insertAttachment(chatId, new Blob([content.buffer], { type: content.type }))).toString() : content, 
                 chatId, +isAttachment
             );
 

@@ -10,6 +10,7 @@
     import { isChatTree, type IChatTree } from "$lib/chat/ichat-tree";
     import MessageBox from "$lib/components/chat/message-box.svelte";
     import Dialog from "$lib/components/utils/dialog.svelte";
+    import AttachmentMessage from "$lib/components/chat/attachment-message.svelte";
 
     const REQUEST_TIMEOUT_TIME = 5000; // ? 5s
 
@@ -31,6 +32,8 @@
 
     let showCreateGroupChatWindow = false;
     let groupChatMembersInput = '';
+
+    let includedAttachments: File[] = [];
 
     $: {
         if (searchValue) {
@@ -277,9 +280,17 @@
     }
 
     function sendMessage() {
-        if (!messageValue || !currentChat) return;
+        if (!currentChat) return;
 
-        socket.emit('sendMessage', currentChat.getId(), messageValue);
+        if (messageValue) socket.emit('sendMessage', currentChat.getId(), messageValue);
+        
+        if (includedAttachments.length > 0) {
+            for (const i of includedAttachments) {
+                socket.emit('sendMessage', currentChat.getId(), { buffer: i, type: i.type });
+            }
+        }
+
+        includedAttachments = [];
         messageValue = '';
     }
 
@@ -322,6 +333,21 @@
                     pendingMessageRequest = false;
                 });
             })
+        }
+    }
+
+    function onDrop(e: DragEvent) {                
+        e.preventDefault();
+        
+        if (e.dataTransfer) {
+            [...e.dataTransfer.items].forEach(i => {
+                if (i.kind == "file") {
+                    const file = i.getAsFile()!;
+                    includedAttachments.push(file);
+                }
+            }) 
+
+            includedAttachments = includedAttachments;
         }
     }
 </script>
@@ -374,9 +400,10 @@
     </div>
 
     <!--Chat-->
+    <!-- svelte-ignore a11y-no-static-element-interactions -->
     <div class="flex-1 m-5 border-2 border-indigo-500 rounded-2xl flex flex-col">        
         <!--TopBar-->
-        {#if currentChat}
+        {#if currentChat}                
         <div class="w-full h-16 border-b-2 border-b-indigo-500 flex justify-between items-center pl-2">
             <div class="flex items-center">
                 <ChatCover urlPromise={getChatCover(currentChat)}/>
@@ -387,21 +414,47 @@
         </div>
 
         <!--Chat-->
-        <div class="w-full flex-1 p-2 flex flex-col-reverse gap-1 overflow-y-auto" bind:this={chatWindow} on:scroll={onChatScroll}>
+        <div class="w-full flex-1 p-2 flex flex-col-reverse gap-1 overflow-y-auto" bind:this={chatWindow} on:scroll={onChatScroll} on:dragover|preventDefault={() => {}} on:drop={onDrop}>
             <!--This shi is a mess, improve it in client v2-->
             {#each currentChat.toArray().reverse() as m (m.id)}
+            {#if m.is_attachment == 0}
             <MessageBox content={m.content} owner={m.username} onDelete={m.username == data.user.username? () => { 
                 socket.emit('deleteMessage', m.id);
             } : undefined }/>
+            {:else}
+            <AttachmentMessage owner={m.username} urlPromise={getAttachment(Number(m.content)) } onDelete={m.username == data.user.username? () => { 
+                socket.emit('deleteMessage', m.id);
+            } : undefined }/>
+            {/if}
             {/each}
         </div>
 
-        <!--MessageBox-->
-        <div class="w-full h-16 border-t-2 border-t-indigo-500 flex p-2 gap-2">
-            <input type="text" placeholder="Write a message!" autocomplete="off" class="rounded-2xl flex-1 p-2 border-2 border-gray-400" bind:value={messageValue} on:keydown={e => { if (e.key == "Enter") sendMessage() }}/>
-            <button class="bg-indigo-500 text-white p-2 rounded-2xl" on:click={sendMessage}>
-                Send
-            </button>
+        <div>
+            {#if includedAttachments.length > 0}
+            <div class="flex gap-2 p-2 border-t-2 border-gray-500">
+                {#each includedAttachments as i}
+                <button on:click={() => {
+                    includedAttachments.splice(includedAttachments.indexOf(i), 1);
+                    includedAttachments = includedAttachments;
+                }}>{i.name}</button>
+                {/each}
+            </div>
+            {/if}
+
+            <!--MessageBox-->
+            <div class="w-full h-16 border-t-2 border-t-indigo-500 flex p-2 gap-2">
+                <input 
+                    type="text" 
+                    placeholder="Write a message!" 
+                    autocomplete="off" 
+                    class="rounded-2xl flex-1 p-2 border-2 border-gray-400" 
+                    bind:value={messageValue} 
+                    on:keydown={e => { if (e.key == "Enter") sendMessage() }}
+                />
+                <button class="bg-indigo-500 text-white p-2 rounded-2xl" on:click={sendMessage}>
+                    Send
+                </button>
+            </div>
         </div>
         {/if}
     </div>

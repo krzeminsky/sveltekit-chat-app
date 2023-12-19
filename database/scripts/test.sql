@@ -1,2 +1,1 @@
-SELECT * FROM user;
-SELECT * FROM attachment;
+SELECT * FROM message;
