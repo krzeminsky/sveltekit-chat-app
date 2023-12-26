@@ -68,6 +68,20 @@ io.on('connection', socket => {
         callback(dbCall.searchChats(name, search.toLowerCase()));
     });
 
+    socket.on('getUserAvatar', (other: string, callback) => {
+        if (!other || typeof other !== "string" || typeof callback !== "function") return;
+
+        const avatarId = dbCall.getUserAvatarId(other);
+        if (!avatarId) return callback(avatarId);
+
+        const data = dbCall.getAttachmentData(avatarId);
+        if (!data) return callback(null);
+
+        const buffer = dbCall.getAttachment(avatarId);
+
+        callback({ avatarId, buffer, type: data.type });
+    });
+
     socket.on('sendMessage', async (target: number|string, content: string|{ buffer: Buffer, type: string }) => {      
         if (!target || !content) return;
 
@@ -151,13 +165,11 @@ io.on('connection', socket => {
     });
 
     // ? if its a group chat and the socket is the creator of the group chat - delete the chat, if its a private convo - update the break point for the socket
-    socket.on('deleteChat', (chatId: number, callback) => {
+    socket.on('deleteChat', (chatId: number) => {
         if (isNaN(chatId)) return;
 
         if (dbCall.isChatPrivate(chatId)) {
             dbCall.updateChatBreakPoint(name, chatId);
-
-            if (typeof callback === "function") callback();
         } else if (dbCall.getChatMemberRank(name, chatId) == 2) {
             const members = dbCall.getChatMembers(chatId);
             dbCall.deleteChat(chatId);
@@ -203,7 +215,7 @@ io.on('connection', socket => {
         const systemMessage = dbCall.insertMessage("", `${name} added ${other} to the group chat`, chatId, 0);
 
         // ? chatId, who added, who got added
-        broadcastEvent(dbCall.getChatMembers(chatId), 'chatMemeberAdded', chatId, other, dbCall.getUserAvatarId(other), systemMessage);
+        broadcastEvent(dbCall.getChatMembers(chatId), 'chatMemeberAdded', chatId, other, systemMessage);
     });
 
     // ? but only admins can remove them
@@ -224,24 +236,18 @@ io.on('connection', socket => {
         broadcastEvent([other, ...dbCall.getChatMembers(chatId)], 'chatMemberRemoved', chatId, other, systemMessage);
     });
 
-    socket.on('getChatData', (chatId: number, callback) => {
-        if (isNaN(chatId) || typeof callback !== "function" || !dbCall.isChatMember(name, chatId)) return;
+    socket.on('getChatdata', (target: number|string, callback) => {
+        if (!target || typeof callback !== "function") return;
 
-        const data = dbCall.getChatData(chatId);
+        if (typeof target === "string") {
+            const id = dbCall.getPrivateChatId(name, target);
+            if (!id) return callback(null);
 
-        if (!data) return callback(null);
-
-        callback(data);
-    });
-
-    socket.on('getPrivateChatData', (other: string, callback) => {
-        if (typeof other !== "string" || typeof callback !== "function") return;
-
-        const id = dbCall.getPrivateChatId(name, other);
-        if (!id) return callback(null);
-
-        const data = dbCall.getChatData(id);
-        callback(data);
+            const data = dbCall.getChatData(id);
+            callback(data);
+        } else {
+            callback(dbCall.getChatData(target));
+        }
     })
 
     // ? anyone can change group chat name
@@ -259,15 +265,15 @@ io.on('connection', socket => {
     });
 
     // ? anyone can change group chat photo
-    socket.on('setChatCover', (chatId: number, chatCover: Blob|null) => {
+    socket.on('setChatCover', (chatId: number, chatCover: { buffer: Buffer, type: string }|null) => {
         if (isNaN(chatId) || dbCall.isChatPrivate(chatId) || !dbCall.isChatMember(name, chatId)) return;
 
         let coverId;
 
-        if (chatCover instanceof Blob) {
+        if (chatCover) {
             if (chatCover.type.split('/')[0] == "image") return;
 
-            coverId = dbCall.setChatCover(chatId, chatCover);
+            coverId = dbCall.setChatCover(chatId, new Blob([chatCover.buffer], { type: chatCover.type }));
         } else {
             dbCall.removeChatCover(chatId);
 
@@ -296,7 +302,7 @@ io.on('connection', socket => {
         broadcastEvent(dbCall.getChatMembers(chatId), 'chatNicknameSet', chatId, other, nickname, systemMessage);
     });
 
-    socket.on('changeChatRank', (chatId: number, other: string) => {
+    socket.on('changeChatMemberRank', (chatId: number, other: string) => {
         if (isNaN(chatId) 
             || typeof other !== "string" 
             || name == other) return;
@@ -313,7 +319,7 @@ io.on('connection', socket => {
         
         const systemMessage = dbCall.insertMessage("", rank == 0? `${name} demoted ${other}` : `${name} promoted ${other}`, chatId, 0);
 
-        broadcastEvent(dbCall.getChatMembers(chatId), 'chatRankChanged', chatId, other, rank, systemMessage);
+        broadcastEvent(dbCall.getChatMembers(chatId), 'chatMemberRankChanged', chatId, other, rank, systemMessage);
     });
 
     // * can make it more efficient by not being lazy
@@ -358,7 +364,7 @@ io.on('connection', socket => {
                 const res = reactions.join(',');
                 dbCall.setMessageReactions(messageId, res);
 
-                broadcastEvent(dbCall.getChatMembers(data.chat_id), 'messageReactionSet', name, messageId, res);
+                broadcastEvent(dbCall.getChatMembers(data.chat_id), 'messageReactionSet', data.chat_id, messageId, res);
 
                 return;
             }

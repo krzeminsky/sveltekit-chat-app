@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.main-gradient {
+    @apply bg-gradient-to-tr from-indigo-500 to-purple-500
+}
+
+.text-gradient {
+    @apply bg-clip-text text-transparent main-gradient
+}
+
+.button {
+    @apply py-2 px-4 text-white main-gradient rounded-full
+}
+
+.icon-button {
+    @apply flex flex-col items-center text-center whitespace-nowrap justify-center bg-white p-6 rounded-full hover:bg-gray-100 transition-all cursor-pointer w-36 h-36;
+}
+
+.icon-button img {
+    @apply h-16;
+}

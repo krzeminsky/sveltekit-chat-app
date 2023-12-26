@@ -1,6 +1,6 @@
 CREATE TABLE user (
     id TEXT NOT NULL PRIMARY KEY,
-    username TEXT NOT NULL UNIQUE,
+    username TEXT NOT NULL UNIQUE ON UPDATE CASCADE,
     block_list TEXT NOT NULL,
     avatar_id INTEGER
 );
