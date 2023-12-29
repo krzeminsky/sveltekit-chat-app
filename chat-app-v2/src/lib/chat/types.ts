@@ -40,3 +40,9 @@ export type SearchResult = {
         cover_id: number|null
     }[]
 }
+
+export type MessageGroup = {
+    messages: Message[];
+    username: string;
+    timestamp: number;
+}

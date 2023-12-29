@@ -1,7 +1,8 @@
 import type { Socket } from "socket.io-client";
 import type { Chat, ChatData, ChatMember, Message, SearchResult } from "./types";
-import { getAttachment as getCachedAttachment, type Attachment, cacheAttachment } from "../attachment-cache";
+import { getAttachment, type Attachment, cacheAttachment, getUserAvatar, type UserAvatarAttachment } from "../attachment-cache";
 import { withTimeout } from "$lib/utils/with-timeout";
+import { SocketAttachmentHandler } from "./socket-attachment-handler";
 
 type SocketEvents = {
     connected: (data: { chat: Chat, members: ChatMember[], messages: Message[] }[]) => void;
@@ -39,12 +40,17 @@ function registerSocketEvents(socket: Socket, events: SocketEvents) {
 
 export class SocketWrapper {
     socket: Socket;
-    cachedUsers = new Map<string, number|null>();
+    attachmentHandler: SocketAttachmentHandler;
 
     constructor(socket: Socket, events: SocketEvents) {
         this.socket = socket;
+        this.attachmentHandler = new SocketAttachmentHandler(socket);
 
         registerSocketEvents(socket, events);
+    }
+
+    dispose() {
+        this.socket.disconnect();
     }
 
     searchChats(search: string) {
@@ -53,42 +59,14 @@ export class SocketWrapper {
         });
     }
 
-    async getUserAvatarUrl(user: string) {
-        if (!this.cachedUsers.has(user)) {
-            const res = await withTimeout<(Attachment & { id: number })|null|undefined>((resolve) => {
-                this.socket.emit("getUserAvatar", user, (result: (Attachment & { id: number })|null|undefined ) => resolve(result))
-            }).catch(() => undefined);
-
-            if (typeof res === "undefined") return 'default-user-avatar.png';
-            else if (!res) {
-                this.cachedUsers.set(user, null);
-                return 'default-user-avatar.png';
-            } else {
-                this.cachedUsers.set(user, res.id);
-                return cacheAttachment(res.id, res);
-            }
-        } else {
-            const id = this.cachedUsers.get(user);
-            if (!id) return 'default-user-avatar.png';
-
-            return (await this.getAttachmentUrl(id).catch(() => 'default-user-avatar.png'))??'default-user-avatar.png';
-        }
-    }
-
     sendMessage(target: number|string, content: string|Attachment) {
         this.socket.emit("sendMessage", target, content);
     }
 
     getMessages(chatId: number, offset: number) {
-        return withTimeout<Message[]>((resolve) => {
+        return withTimeout<Message[]>(resolve => {
             this.socket.emit("getMessages", chatId, offset, (messages: Message[]) => resolve(messages));
         });
-    }
-
-    getAttachmentUrl(attachmentId: number) {
-        return getCachedAttachment(attachmentId, () => withTimeout<Attachment>((resolve) => {
-            this.socket.emit("getAttachment", attachmentId, (attachment: Attachment) => resolve(attachment));
-        }));
     }
 
     deleteMessage(messageId: number) {
@@ -116,7 +94,7 @@ export class SocketWrapper {
     }
 
     getChatData(target: number|string) {
-        return withTimeout<ChatData|null>((resolve) => {
+        return withTimeout<ChatData|null>(resolve => {
             this.socket.emit("getChatData", target, (data: ChatData|null) => resolve(data));
         });
     }
@@ -138,7 +116,7 @@ export class SocketWrapper {
     }
 
     changeUserBlockState(user: string) {
-        return withTimeout<void>((resolve) => {
+        return withTimeout<void>(resolve => {
             this.socket.emit("changeUserBlockState", user, () => resolve());
         });
     }

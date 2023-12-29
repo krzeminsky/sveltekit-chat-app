@@ -5,19 +5,26 @@ export type Attachment = {
     type: string;
 }
 
-const attachments = new Map<number, Blob>();
+export type UserAvatarAttachment = {
+    buffer: Buffer;
+    type: string;
+    avatarId: number;
+}
 
-export async function getAttachment(id: number, fallback: () => Promise<Attachment|Blob>) {
+const attachments = new Map<number, Blob>();
+const cachedUserAvatars = new Map<string, number|null>();
+
+export async function getAttachment(id: number, fallback: () => Promise<Attachment|null>) {
     if (attachments.has(id)) return createUrl(attachments.get(id)!);
 
-    const res = await fallback();
-    if (!res) return null;
+    const res = await fallback().catch(null);
 
-    if (res instanceof Blob) return cachceBlob(id, res);
-    else return cacheAttachment(id, res);
+    return !res? null : cacheAttachment(id, res);
 }
 
 export async function fetchAttachment(id: number) {
+    if (attachments.has(id)) return createUrl(attachments.get(id)!);
+    
     const res = await withTimeout<Response>(async (resolve) => {
         const response = await fetch('/api/attachments', {
             method: "GET",
@@ -29,7 +36,29 @@ export async function fetchAttachment(id: number) {
         resolve(response);
     });
 
-    return await res.blob();
+    return !res.ok? null : cachceBlob(id, await res.blob());
+}
+
+const DEFAULT_USER_AVATAR_URL = 'default-user-avatar.png';
+
+export async function getUserAvatar(username: string, fallback: () => Promise<UserAvatarAttachment|null|undefined>) {
+    if (!cachedUserAvatars.has(username)) {
+        const res = await fallback().catch(null);
+        
+        if (typeof res === "undefined") return DEFAULT_USER_AVATAR_URL;
+        else if (!res) {
+            cachedUserAvatars.set(username, null);
+            return DEFAULT_USER_AVATAR_URL;
+        } else {
+            cachedUserAvatars.set(username, res.avatarId);
+            return cacheAttachment(res.avatarId, res);
+        }
+    } else {
+        const id = cachedUserAvatars.get(username);
+        if (!id) return DEFAULT_USER_AVATAR_URL;
+
+        return createUrl(attachments.get(id)!); // ? since we already cached the user avatar, it means that the attachment linked to this avatar has also been cached
+    }
 }
 
 export function cacheAttachment(id: number, attachment: Attachment) {
