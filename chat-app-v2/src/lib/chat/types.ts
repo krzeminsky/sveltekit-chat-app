@@ -6,11 +6,9 @@ export type Chat = {
 }
 
 export type ChatMember = {
-    id: number;
     username: string;
-    chat_id: number;
+    nickname: string|null;
     rank: number;
-    nickname: string|null
 }
 
 export type ChatData = {
@@ -39,10 +37,4 @@ export type SearchResult = {
         name: string,
         cover_id: number|null
     }[]
-}
-
-export type MessageGroup = {
-    messages: Message[];
-    username: string;
-    timestamp: number;
 }

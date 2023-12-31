@@ -183,15 +183,13 @@ io.on('connection', socket => {
 
         const rank = dbCall.getChatMemberRank(name, chatId);
         dbCall.removeChatMember(chatId, name);
+        io.to(name).emit('groupChatDeleted', chatId);
         
         const members = dbCall.getChatMembers(chatId);
         let newOwner;
 
         if (members.length == 0) {
-            dbCall.deleteChat(chatId);
-            io.to(name).emit('chatMemberLeft', chatId, name);
-
-            return;
+            return dbCall.deleteChat(chatId);;
         } else if (rank == 2) {
             newOwner = dbCall.transferChatOwnership(chatId);
         }
@@ -232,8 +230,9 @@ io.on('connection', socket => {
         
         const systemMessage = dbCall.insertMessage("", `${name} removed ${other} from the group chat`, chatId, 0);
 
+        io.to(other).emit('groupChatDeleted', chatId);
         // ? chatId, who removed, who got removed
-        broadcastEvent([other, ...dbCall.getChatMembers(chatId)], 'chatMemberRemoved', chatId, other, systemMessage);
+        broadcastEvent(dbCall.getChatMembers(chatId), 'chatMemberRemoved', chatId, other, systemMessage);
     });
 
     socket.on('getChatdata', (target: number|string, callback) => {

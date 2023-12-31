@@ -28,8 +28,7 @@ export type Message = {
 export type ChatMember = {
     username: string,
     nickname?: string,
-    rank: number,
-    avatar_id: number|null
+    rank: number
 }
 
 export type SearchResult = {
@@ -133,7 +132,7 @@ const getLastChatMessageIdQuery = db.prepare("SELECT id FROM message WHERE chat_
 
 const deleteChatStmnt = db.prepare("DELETE FROM chat WHERE id = ?");
 
-const getChatMembersDataQuery = db.prepare("SELECT cm.username, cm.rank, cm.nickname, u.avatar_id FROM chat_member AS cm JOIN user AS u ON u.username = cm.username WHERE chat_id = ?");
+const getChatMembersDataQuery = db.prepare("SELECT username, rank, nickname FROM chat_member WHERE chat_id = ?");
 
 const getChatDataTransaction = db.transaction((chatId: number) => {
     const chat = getChatQuery.get(chatId) as Chat|undefined;

@@ -1,6 +1,6 @@
 <script lang="ts">
     import type { SocketAttachmentHandler } from "$lib/chat/socket-attachment-handler";
-    import type { MessageGroup } from "$lib/chat/types";
+    import type { MessageGroup } from "$lib/chat/message-group";
     import { createEventDispatcher } from "svelte";
     import UserAvatar from "../user-avatar.svelte";
     import Attachment from "./attachment.svelte";

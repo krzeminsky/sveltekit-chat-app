@@ -5,18 +5,18 @@ import { withTimeout } from "$lib/utils/with-timeout";
 import { SocketAttachmentHandler } from "./socket-attachment-handler";
 
 type SocketEvents = {
-    connected: (data: { chat: Chat, members: ChatMember[], messages: Message[] }[]) => void;
+    connected: (chatData: { chat: Chat, members: ChatMember[], messages: Message[] }[]) => void;
     messageReceived: (message: Message) => void;
     messageDeleted: (messageId: number, chatId: number) => void;
-    groupChatCreated: (data: ChatData, systemMessage: string) => void;
+    groupChatCreated: (chatData: ChatData, systemMessage: Message) => void;
     groupChatDeleted: (chatId: number) => void;
-    chatMemberLeft: (chatId: number, member: string, newOwner: string|undefined, systemMessage: string) => void;
-    chatMemberAdded: (chatId: number, member: string, systemMessage: string) => void;
-    chatMemberRemoved: (chatId: number, member: string, systemMessage: string) => void;
-    chatNameSet: (chatId: number, chatName: string|null, systemMessage: string) => void;
-    chatCoverSet: (chatId: number, coverId: number|null, systemMessage: string) => void;
-    chatNicknameSet: (chatId: number, member: string, nickname: string|null, systemMessage: string) => void;
-    chatMemberRankChanged: (chatId: number, member: string, rank: number, systemMessage: string) => void;
+    chatMemberLeft: (chatId: number, member: string, newOwner: string|undefined, systemMessage: Message) => void;
+    chatMemberAdded: (chatId: number, member: string, systemMessage: Message) => void;
+    chatMemberRemoved: (chatId: number, member: string, systemMessage: Message) => void;
+    chatNameSet: (chatId: number, chatName: string|null, systemMessage: Message) => void;
+    chatCoverSet: (chatId: number, coverId: number|null, systemMessage: Message) => void;
+    chatNicknameSet: (chatId: number, member: string, nickname: string|null, systemMessage: Message) => void;
+    chatMemberRankChanged: (chatId: number, member: string, rank: number, systemMessage: Message) => void;
     messageReactionsSet: (chatId: number, messageId: number, reactions: string) => void;
     userBlockStateChanged: (user: string, state: boolean) => void;
 }
