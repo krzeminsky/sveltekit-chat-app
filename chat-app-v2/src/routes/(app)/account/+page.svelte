@@ -36,14 +36,14 @@
         </button>
 
         <div class="absolute top-0 left-0 pointer-events-none w-full h-full bg-black bg-opacity-30 z-10 opacity-0 peer-hover:opacity-100 transition-all">
-            <img src="edit-white.svg" alt="edit" class="absolute h-16 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"/>
+            <img src="icons/edit-white.svg" alt="edit" class="absolute h-16 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"/>
         </div>
     </div>
 
     <button class="group flex items-center gap-2" on:click={() => showUsernameEditDialog = true}>
         <h1 class="text-3xl">{data.session.user.username}</h1>
         
-        <img src="edit.svg" alt="edit" class="opacity-0 group-hover:opacity-100 transition-all"/>
+        <img src="icons/edit.svg" alt="edit" class="opacity-0 group-hover:opacity-100 transition-all"/>
     </button>
 </div>
 {/if}
@@ -57,7 +57,7 @@
             }
         }}>
             <label class="icon-button">
-                <img src="upload.svg" alt="upload"/>
+                <img src="icons/upload.svg" alt="upload"/>
                 
                 <input name="avatar" type="file" accept="image/*" hidden on:change={() => uploadAvatarForm.requestSubmit()}/>
                 
@@ -72,7 +72,7 @@
             }
         }}>
             <button class="icon-button">
-                <img src="delete.svg" alt="delete"/>
+                <img src="icons/delete.svg" alt="delete"/>
         
                 Delete
             </button>

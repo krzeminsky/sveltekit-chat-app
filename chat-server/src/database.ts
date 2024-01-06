@@ -32,10 +32,7 @@ export type ChatMember = {
 }
 
 export type SearchResult = {
-    users: {
-        username: string,
-        avatar_id: number|null
-    }[],
+    users: string[],
 
     chats?: {
         id: number,
@@ -183,7 +180,7 @@ const deleteChatTransaction = db.transaction((chatId: number) => {
 
 
 const MAX_SEARCH_RESULTS = 5;
-const searchUsersQuery = db.prepare(`SELECT username, avatar_id FROM user WHERE LOWER(username) LIKE ? LIMIT ${MAX_SEARCH_RESULTS}`);
+const searchUsersQuery = db.prepare(`SELECT username FROM user WHERE LOWER(username) LIKE ? LIMIT ${MAX_SEARCH_RESULTS}`).pluck(true);
 const getUserGroupChatsByNameQuery = db.prepare(`
     SELECT c.id, c.cover_id, c.name FROM chat AS c 
     JOIN chat_member AS cm ON cm.id = c.id AND cm.username = ?
@@ -199,10 +196,10 @@ const getUserGroupChatsWithNoNameQuery = db.prepare(`
 // ! I HAVE NO IDEA WHAT I'M DOING
 const getSearchResultsTransaction = db.transaction((username: string, search: string) => {
     const searchParam = `${search}%`;
-    const users = searchUsersQuery.all(searchParam) as { username: string, avatar_id: number|null }[];
+    const users = searchUsersQuery.all(searchParam) as string[];
 
     for (let i = 0; i < users.length; i++) {
-        if (users[i].username == username) {
+        if (users[i] == username) {
             users.splice(i, 1);
             break;
         }

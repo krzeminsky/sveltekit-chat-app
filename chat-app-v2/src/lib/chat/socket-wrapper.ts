@@ -1,6 +1,6 @@
 import type { Socket } from "socket.io-client";
 import type { Chat, ChatData, ChatMember, Message, SearchResult } from "./types";
-import { getAttachment, type Attachment, cacheAttachment, getUserAvatar, type UserAvatarAttachment } from "../attachment-cache";
+import { type Attachment } from "../attachment-cache";
 import { withTimeout } from "$lib/utils/with-timeout";
 import { SocketAttachmentHandler } from "./socket-attachment-handler";
 

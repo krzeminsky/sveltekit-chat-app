@@ -27,10 +27,7 @@ export type Message = {
 }
 
 export type SearchResult = {
-    users: {
-        username: string,
-        avatar_id: number|null
-    }[],
+    users: string[],
 
     chats?: {
         id: number,

@@ -25,7 +25,7 @@
 
 <svelte:window on:mousedown={hideAccountActionsOnWindowClick} />
 
-<div class="fixed top-0 left-0 h-14 w-full bg-white">
+<div class="fixed top-0 left-0 h-14 w-full bg-white z-10">
     <div class="absolute top-1/2 -translate-y-1/2 right-8">
         {#if data.session}
         <div class="flex items-center gap-3">

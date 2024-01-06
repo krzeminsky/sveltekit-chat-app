@@ -3,13 +3,24 @@ import { MessageGroup } from "./message-group";
 import { type ChatData, type Message } from "./types";
 
 export interface ChatView {
-    socketUsername: string;
-    
     get displayName(): string;
 
     get id(): number|string;
     get chatCover(): number|null|string;
     get messageGroups(): MessageGroup[];
+}
+
+export class TempChat implements ChatView {
+    name: string;
+
+    constructor(name: string) {
+        this.name = name;
+    }
+
+    get displayName() { return this.name }
+    get id() { return this.name }
+    get chatCover() { return this.name }
+    get messageGroups() { return [] }
 }
 
 // ? last message is at the bottom of the chat window -> has the highest id
@@ -19,16 +30,13 @@ export class ChatTree implements ChatView {
     data: ChatData;
 
     hasFullHistory = false;
+    count = 0;
 
     messageGroupList = new LinkedList<MessageGroup>();
 
     constructor(socketUsername: string, data: ChatData) {
         this.socketUsername = socketUsername;
         this.data = data;
-    }
-
-    get count() {
-        return this.messageGroupList.count;
     }
 
     get members() { 
@@ -62,38 +70,47 @@ export class ChatTree implements ChatView {
     }
 
     get messageGroups() {
-        return this.messageGroupList.toArray();
+        return this.messageGroupList.toReversedArray();
     }
 
-    get chatPreview() {
-        if (this.messageGroupList.last?.value.lastMessage) {
-            const message = this.messageGroupList.last.value.lastMessage;
+    get lastMessagePreview() {
+        const message = this.messageGroupList.last?.value.lastMessage;
 
-            if (message.is_attachment) return `${message.username} sent an attachment`;
-            else return `${message.username? `${message.username}: ` : ''}${message.content}`;
-        } else {
-            return '';
-        }
+        if (!message) return '';
+
+        if (message.is_attachment) return `${message.username} sent an attachment`;
+        else return `${message.username? `${message.username}: ` : ''}${message.content}`;
     }
 
-    // ? message group flow is opposite to message flow
-    // ? message group: last group is displayed first
-    // ? messages: last message is displayed last in the group
-     
+    get lastMessageTime() {
+        const message = this.messageGroupList.last?.value.lastMessage;
+
+        if (!message) return '';
+
+        return new Date(message.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    }
+
     // ? load message, insert at the front of the array
     insertMessage(message: Message) {
         const firstGroup = this.messageGroupList.first?.value;
         
         if (firstGroup && firstGroup.isValidGroupMessage(message)) firstGroup.insertMessage(message);
         else this.messageGroupList.insert(new MessageGroup(message));
+
+        this.count++;
     }
 
     // ? add new message, push to the back of the array
     pushMessage(message: Message) {
         const lastGroup = this.messageGroupList.last?.value;
 
-        if (lastGroup && lastGroup.isValidGroupMessage(message)) lastGroup.pushMessage(message);
-        else this.messageGroupList.push(new MessageGroup(message));
+        if (lastGroup && lastGroup.isValidGroupMessage(message)) {
+            lastGroup.pushMessage(message);
+        } else {
+            this.messageGroupList.push(new MessageGroup(message));
+        }
+
+        this.count++;
     }
 
     insertMultiple(messages: Message[]) {

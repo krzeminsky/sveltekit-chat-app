@@ -25,7 +25,7 @@
 
 <div class="relative">
     <button data-dialog on:click={() => show = !show}>
-        <img data-dialog src="add-reaction" alt="add reaction"/>
+        <img data-dialog src="icons/add-reaction.svg" alt="add reaction"/>
     </button>
 
     {#if show}

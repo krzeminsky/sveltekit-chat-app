@@ -6,7 +6,7 @@
     export let reactions: string;
 </script>
 
-<span class="relative px-5 py-2 break-words text-white  {left? 
+<h1 class="w-fit relative px-5 py-2 break-words text-white  {left? 
     'bg-gray-600 rounded-r-3xl rounded-l-lg first:rounded-tl-3xl last:rounded-bl-3xl' 
 :   'main-gradient rounded-l-3xl rounded-r-lg first:rounded-tr-3xl last:rounded-br-3xl'
 }">
@@ -16,4 +16,4 @@
     {getReactionCount(reactions)}
 </div>
 {/if}
-</span>
+</h1>

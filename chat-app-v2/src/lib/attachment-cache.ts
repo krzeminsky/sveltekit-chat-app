@@ -61,11 +61,13 @@ export async function getUserAvatar(username: string, fallback: () => Promise<Us
     }
 }
 
-export function cacheAttachment(id: number, attachment: Attachment) {
+
+
+function cacheAttachment(id: number, attachment: Attachment) {
     return cachceBlob(id, new Blob([attachment.buffer], { type: attachment.type }));
 }
 
-export function cachceBlob(id: number, blob: Blob) {
+function cachceBlob(id: number, blob: Blob) {
     attachments.set(id, blob);
     return createUrl(blob);
 }

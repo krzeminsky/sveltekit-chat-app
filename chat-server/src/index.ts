@@ -235,7 +235,7 @@ io.on('connection', socket => {
         broadcastEvent(dbCall.getChatMembers(chatId), 'chatMemberRemoved', chatId, other, systemMessage);
     });
 
-    socket.on('getChatdata', (target: number|string, callback) => {
+    socket.on('getChatData', (target: number|string, callback) => {        
         if (!target || typeof callback !== "function") return;
 
         if (typeof target === "string") {
