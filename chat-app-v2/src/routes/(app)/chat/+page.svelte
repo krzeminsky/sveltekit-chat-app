@@ -10,6 +10,7 @@
     import UserAvatar from "$lib/components/user-avatar.svelte";
     import { getChatCover } from "$lib/utils/get-chat-cover";
     import MessageGroup from "$lib/components/chat/message-group.svelte";
+    import AttachmentList from "$lib/components/chat/attachment-list.svelte";
 
     export let data: PageData;
 
@@ -274,11 +275,6 @@
         }
     }
 
-    function deleteIncludedAttachment(a: File) {
-        includedAttachments.splice(includedAttachments.indexOf(a), 1);
-        includedAttachments = includedAttachments;
-    }
-
     async function sendMessage() {
         if (!currentChat) return;
 
@@ -338,7 +334,7 @@
 
         <div class="relative p-4 flex-1">
             {#if !searchValue && chatList.empty}
-            <h1 class="text-gray-300 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center">Future chats will be displayed here</h1>
+            <h1 class="center-text-placeholder">Future chats will be displayed here</h1>
             {:else}
                 {#if searchValue}
                     {#if searchResults}
@@ -355,12 +351,12 @@
         {#if currentChat}
         <div class="w-full h-16 flex items-center justify-between">
             <div class="flex items-center gap-2">
-                <UserAvatar size={44} urlPromise={getCover(currentChat.chatCover)} />
+                <UserAvatar size={44} blobPromise={getCover(currentChat.chatCover)} />
                 <h1 class="text-xl">{currentChat.displayName}</h1>
             </div>
 
             <button class="bg-none hover:bg-gray-100 active:bg-gray-200 transition-all rounded-full">
-                <img src="icons/more.svg" alt="more options" class="p-2" />
+                <img src="icons/more.svg" alt="chat options" class="p-2" />
             </button>
         </div>
 
@@ -371,16 +367,7 @@
         </div>
 
         <div class="w-full">
-            {#if includedAttachments.length > 0}
-            <div class="flex gap-2 flex-wrap pt-2">
-                {#each includedAttachments as a}
-                <button class="flex-shrink-0 px-4 py-2 border-2 border-gray-300 rounded-full" on:click={() => deleteIncludedAttachment(a)}>
-                    {a.name}
-                    <img src="icons/delete.svg" alt="delete attachment" class="inline-block" />
-                </button>
-                {/each}
-            </div>
-            {/if}
+            <AttachmentList bind:attachments={includedAttachments} />
 
             <div class="w-full h-16 flex gap-2 items-center">
                 <input type="text" placeholder="Write a message" class="flex-1 px-4 py-2 border-2 focus:outline-none rounded-full" bind:value={draftMessageValue} on:keydown={e => {
@@ -393,7 +380,7 @@
             </div>
         </div>
         {:else}
-        <h1 class="text-gray-300 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center">No chat opened</h1>
+        <h1 class="center-text-placeholder">No chat opened</h1>
         {/if}
     </div>
 </div>

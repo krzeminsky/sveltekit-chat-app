@@ -13,6 +13,7 @@
   "dependencies": {
     "@lucia-auth/adapter-sqlite": "^2.0.1",
     "better-sqlite3": "^9.0.0",
+    "image-size": "^1.1.1",
     "lucia": "^2.7.4",
     "polka": "^0.5.2",
     "socket.io": "^4.7.2",

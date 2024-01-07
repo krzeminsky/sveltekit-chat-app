@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import fs from "fs";
 import { compareTwoStrings } from "string-similarity";
+import sizeOf, { imageSize } from "image-size";
 
 const dataPath = '../database';
 const attachmentsPath = `${dataPath}/attachments`;
@@ -39,6 +40,11 @@ export type SearchResult = {
         name: string,
         cover_id: number|null
     }[]
+}
+
+export type AttachmentData = {
+    chat_id: number|null,
+    type: string
 }
 
 const userExistsQuery = db.prepare("SELECT 1 FROM user WHERE username = ?").pluck(true);
@@ -157,7 +163,7 @@ const updateChatMemberRankStmnt = db.prepare("UPDATE chat_member SET rank = ? WH
 
 const getUserBlockListQuery = db.prepare("SELECT block_list FROM user WHERE username = ?").pluck(true);
 
-const getAttachmentDataQuery = db.prepare("SELECT chat_id, type FROM attachment WHERE id = ?");
+const getAttachmentDataQuery = db.prepare("SELECT * FROM attachment WHERE id = ?");
 
 const setUserBlockListStmnt = db.prepare("UPDATE user SET block_list = ? WHERE username = ?");
 
@@ -308,18 +314,16 @@ const dbCall = {
         return message;
     },
 
-    async insertAttachment(chatId: number|null, attachment: Blob) {
-        if (!(attachment instanceof Blob)) throw Error;
-        
-        const id = insertAttachmentStmnt.run(chatId, attachment.type).lastInsertRowid;
+    async insertAttachment(chatId: number|null, buffer: Buffer, type: string) {    
+        const id = insertAttachmentStmnt.run(chatId, type).lastInsertRowid;
 
-        fs.writeFileSync(`${attachmentsPath}/${id}`, Buffer.from(await attachment.arrayBuffer()));
+        fs.writeFileSync(`${attachmentsPath}/${id}`, buffer);
 
         return id;
     },
 
     getAttachmentData(id: number) {
-        return getAttachmentDataQuery.get(id) as { chat_id: number|null, type: string }|undefined;
+        return getAttachmentDataQuery.get(id) as AttachmentData|undefined;
     },
 
     getAttachment(id: number) {
@@ -368,12 +372,12 @@ const dbCall = {
         updateChatCoverIdStmnt.run(null, chatId);
     },
 
-    setChatCover(chatId: number, cover: Blob) {
+    setChatCover(chatId: number, buffer: Buffer, type: string) {
         this.removeChatCover(chatId);
 
-        const coverId = this.insertAttachment(chatId, cover);
+        const coverId = this.insertAttachment(chatId, buffer, type);
 
-        updateChatCoverIdStmnt.run(cover, chatId);
+        updateChatCoverIdStmnt.run(coverId, chatId);
 
         return coverId;
     },

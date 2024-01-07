@@ -104,7 +104,7 @@ io.on('connection', socket => {
         try {
             const message = dbCall.insertMessage(
                 name, 
-                isAttachment? (await dbCall.insertAttachment(chatId, new Blob([content.buffer], { type: content.type }))).toString() : content, 
+                isAttachment? (await dbCall.insertAttachment(chatId, content.buffer, content.type)).toString() : content, 
                 chatId, +isAttachment
             );
 
@@ -272,7 +272,7 @@ io.on('connection', socket => {
         if (chatCover) {
             if (chatCover.type.split('/')[0] == "image") return;
 
-            coverId = dbCall.setChatCover(chatId, new Blob([chatCover.buffer], { type: chatCover.type }));
+            coverId = dbCall.setChatCover(chatId, chatCover.buffer, chatCover.type);
         } else {
             dbCall.removeChatCover(chatId);
 
