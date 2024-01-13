@@ -282,7 +282,7 @@
         
         if (includedAttachments.length > 0) {
             for (const i of includedAttachments) {
-                socket.sendMessage(currentChat.id, { buffer: i as unknown as Buffer, type: i.type })
+                socket.sendMessage(currentChat.id, { buffer: i as unknown as Buffer, type: i.type, name: i.name })
             }
         }
 
@@ -351,7 +351,7 @@
         {#if currentChat}
         <div class="w-full h-16 flex items-center justify-between">
             <div class="flex items-center gap-2">
-                <UserAvatar size={44} blobPromise={getCover(currentChat.chatCover)} />
+                <UserAvatar size={44} urlPromise={getCover(currentChat.chatCover)} />
                 <h1 class="text-xl">{currentChat.displayName}</h1>
             </div>
 

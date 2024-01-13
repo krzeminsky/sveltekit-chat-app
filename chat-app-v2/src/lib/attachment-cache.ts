@@ -3,27 +3,39 @@ import { withTimeout } from "./utils/with-timeout";
 export type Attachment = {
     buffer: Buffer;
     type: string;
+    name: string;
 }
 
 export type UserAvatarAttachment = {
     buffer: Buffer;
     type: string;
+    name: string;
     avatarId: number;
 }
 
-const attachments = new Map<number, Blob>();
+const attachments = new Map<number, { blob: Blob, name: string }>();
 const cachedUserAvatars = new Map<string, number|null>();
 
 export async function getAttachment(id: number, fallback: () => Promise<Attachment|null>) {
-    if (attachments.has(id)) return createUrl(attachments.get(id)!);
+    if (attachments.has(id)) {
+        const attachment = attachments.get(id)!;
+
+        return { url: createUrl(attachment.blob), type: attachment.blob.type, name: attachment.name };
+    }
 
     const res = await fallback().catch(null);
+    if (!res) return null;
 
-    return !res? null : cacheAttachment(id, res);
+    const url = cacheAttachment(id, res);
+    return { url, type: res.type, name: res.name };
 }
 
 export async function fetchAttachment(id: number) {
-    if (attachments.has(id)) return createUrl(attachments.get(id)!);
+    if (attachments.has(id)) {
+        const attachment = attachments.get(id)!;
+
+        return { url: createUrl(attachment.blob), type: attachment.blob.type, name: attachment.name };
+    }
     
     const res = await withTimeout<Response>(async (resolve) => {
         const response = await fetch('/api/attachments', {
@@ -36,7 +48,12 @@ export async function fetchAttachment(id: number) {
         resolve(response);
     });
 
-    return !res.ok? null : cachceBlob(id, await res.blob());
+    if (!res.ok) return null;
+    
+    const blob = await res.blob();
+    const name = res.headers.get('file-name')!;
+
+    return { url: cachceBlob(id, blob, name), type: blob.type, name };
 }
 
 const DEFAULT_USER_AVATAR_URL = 'default-user-avatar.png';
@@ -57,18 +74,18 @@ export async function getUserAvatar(username: string, fallback: () => Promise<Us
         const id = cachedUserAvatars.get(username);
         if (!id) return DEFAULT_USER_AVATAR_URL;
 
-        return createUrl(attachments.get(id)!); // ? since we already cached the user avatar, it means that the attachment linked to this avatar has also been cached
+        return createUrl(attachments.get(id)!.blob);
     }
 }
 
 
 
 function cacheAttachment(id: number, attachment: Attachment) {
-    return cachceBlob(id, new Blob([attachment.buffer], { type: attachment.type }));
+    return cachceBlob(id, new Blob([attachment.buffer], { type: attachment.type }), attachment.name);
 }
 
-function cachceBlob(id: number, blob: Blob) {
-    attachments.set(id, blob);
+function cachceBlob(id: number, blob: Blob, name: string) {
+    attachments.set(id, { blob, name });
     return createUrl(blob);
 }
 

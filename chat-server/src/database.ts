@@ -44,7 +44,8 @@ export type SearchResult = {
 
 export type AttachmentData = {
     chat_id: number|null,
-    type: string
+    type: string,
+    name: string
 }
 
 const userExistsQuery = db.prepare("SELECT 1 FROM user WHERE username = ?").pluck(true);
@@ -111,7 +112,7 @@ const isChatMemberQuery = db.prepare("SELECT 1 FROM chat_member WHERE username =
 
 const insertMessageStmnt = db.prepare(`INSERT INTO message VALUES(NULL, ?, ?, ?, ?, ?, '')`);
 
-const insertAttachmentStmnt = db.prepare("INSERT INTO attachment VALUES(NULL, ?, ?)");
+const insertAttachmentStmnt = db.prepare("INSERT INTO attachment VALUES(NULL, ?, ?, ?)");
 
 const getMessageOwnerQuery = db.prepare("SELECT username, chat_id FROM message WHERE id = ?");
 
@@ -314,8 +315,8 @@ const dbCall = {
         return message;
     },
 
-    async insertAttachment(chatId: number|null, buffer: Buffer, type: string) {    
-        const id = insertAttachmentStmnt.run(chatId, type).lastInsertRowid;
+    async insertAttachment(chatId: number|null, buffer: Buffer, type: string, name: string) {    
+        const id = insertAttachmentStmnt.run(chatId, type, name).lastInsertRowid;
 
         fs.writeFileSync(`${attachmentsPath}/${id}`, buffer);
 
@@ -372,10 +373,10 @@ const dbCall = {
         updateChatCoverIdStmnt.run(null, chatId);
     },
 
-    setChatCover(chatId: number, buffer: Buffer, type: string) {
+    setChatCover(chatId: number, buffer: Buffer, type: string, name: string) {
         this.removeChatCover(chatId);
 
-        const coverId = this.insertAttachment(chatId, buffer, type);
+        const coverId = this.insertAttachment(chatId, buffer, type, name);
 
         updateChatCoverIdStmnt.run(coverId, chatId);
 

@@ -7,7 +7,7 @@ const attachmentsPath = `${DATABASE_DIRECTORY}/attachments`;
 const db = Database(`${DATABASE_DIRECTORY}/database.db`);
 
 const getAttachmentTypeQuery = db.prepare("SELECT type FROM attachment WHERE id = ?").pluck(true);
-const insertAvatarStmnt = db.prepare("INSERT INTO attachment VALUES(NULL, NULL, ?)");
+const insertAvatarStmnt = db.prepare(`INSERT INTO attachment VALUES(NULL, NULL, ?, '')`);
 const setUserAvatarStmnt = db.prepare("UPDATE user SET avatar_id = ? WHERE username = ?");
 
 const getAttachmentData = db.prepare("SELECT chat_id, type FROM attachment WHERE id = ?");
@@ -25,7 +25,7 @@ export const dbCall = {
     },
 
     getAttachmentData(id: number) {
-        return getAttachmentData.get(id) as { chat_id: number, type: string };
+        return getAttachmentData.get(id) as { chat_id: number, type: string, name: string };
     },
 
     isChatMember(username: string, chatId: number) {
@@ -35,7 +35,7 @@ export const dbCall = {
     async setUserAvatar(username: string, avatar: Blob|null) {
         if (!avatar) return setUserAvatarStmnt.run(null, username);
         
-        if (avatar.type.split('/')[0] != "image") return;
+        if (avatar.type.slice(0, 5) != "image") return;
 
         const id = insertAvatarStmnt.run(avatar.type).lastInsertRowid as number;
         fs.writeFileSync(`${attachmentsPath}/${id}`, Buffer.from(await avatar.arrayBuffer()));

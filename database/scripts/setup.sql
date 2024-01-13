@@ -55,5 +55,6 @@ CREATE TABLE message (
 CREATE TABLE attachment (
     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     chat_id INTEGER,
-    type TEXT NOT NULL
+    type TEXT NOT NULL,
+    name TEXT NOT NULL
 );

@@ -16,7 +16,7 @@ function getAttachmentOverWs(id: number, socket: Socket) {
 
 export class SocketAttachmentHandler {
     getUserAvatar: (username: string) => Promise<string>;
-    getAttachment: (id: number) => Promise<string|null>;
+    getAttachment: (id: number) => Promise<{ url: string, type: string, name: string }|null>;
 
     constructor(socket: Socket) {
         this.getUserAvatar = (username: string) => getUserAvatarOverWs(username, socket);

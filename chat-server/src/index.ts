@@ -82,7 +82,7 @@ io.on('connection', socket => {
         callback({ avatarId, buffer, type: data.type });
     });
 
-    socket.on('sendMessage', async (target: number|string, content: string|{ buffer: Buffer, type: string }) => {      
+    socket.on('sendMessage', async (target: number|string, content: string|{ buffer: Buffer, type: string, name: string }) => {      
         if (!target || !content) return;
 
         let chatId: number;
@@ -104,7 +104,7 @@ io.on('connection', socket => {
         try {
             const message = dbCall.insertMessage(
                 name, 
-                isAttachment? (await dbCall.insertAttachment(chatId, content.buffer, content.type)).toString() : content, 
+                isAttachment? (await dbCall.insertAttachment(chatId, content.buffer, content.type, content.name )).toString() : content, 
                 chatId, +isAttachment
             );
 
@@ -130,7 +130,7 @@ io.on('connection', socket => {
 
         const buffer = dbCall.getAttachment(attachmentId);
 
-        callback({ buffer, type: data.type });
+        callback({ buffer, type: data.type, name: data.name });
     });
 
     // ? call callback on success
@@ -264,15 +264,15 @@ io.on('connection', socket => {
     });
 
     // ? anyone can change group chat photo
-    socket.on('setChatCover', (chatId: number, chatCover: { buffer: Buffer, type: string }|null) => {
+    socket.on('setChatCover', (chatId: number, chatCover: { buffer: Buffer, type: string, name: string }|null) => {
         if (isNaN(chatId) || dbCall.isChatPrivate(chatId) || !dbCall.isChatMember(name, chatId)) return;
 
         let coverId;
 
         if (chatCover) {
-            if (chatCover.type.split('/')[0] == "image") return;
+            if (chatCover.type.slice(0, 5) == "image") return;
 
-            coverId = dbCall.setChatCover(chatId, chatCover.buffer, chatCover.type);
+            coverId = dbCall.setChatCover(chatId, chatCover.buffer, chatCover.type, chatCover.name);
         } else {
             dbCall.removeChatCover(chatId);
 

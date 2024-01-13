@@ -12,11 +12,11 @@ export const GET = async (event) => {
     if (data.chat_id) {
         const session = await auth.handleRequest(event).validate();
 
-        if (session && dbCall.isChatMember(session.user.username, data.chat_id)) return createResponse(attachmentId, data.type);
+        if (session && dbCall.isChatMember(session.user.username, data.chat_id)) return createResponse(attachmentId, data.type, data.name);
         else throw error(400);
-    } else return createResponse(attachmentId, data.type);
+    } else return createResponse(attachmentId, data.type, data.name);
 }
 
-function createResponse(attachmentId: number, type: string) {
-    return new Response(dbCall.getAttachment(attachmentId), { headers: { 'Content-Type': type } })
+function createResponse(attachmentId: number, type: string, name: string) {
+    return new Response(dbCall.getAttachment(attachmentId), { headers: { 'Content-Type': type, 'file-name': name } })
 }

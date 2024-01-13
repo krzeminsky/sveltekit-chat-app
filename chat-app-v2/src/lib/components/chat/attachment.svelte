@@ -1,7 +1,7 @@
 <script lang="ts">
     import ProgressIndicator from "../utils/progress-indicator.svelte";
 
-    export let urlPromise: Promise<string|null>;
+    export let urlPromise: Promise<{ url: string, type: string, name: string }|null>;
 </script>
 
 {#await urlPromise}
@@ -9,11 +9,15 @@
     <ProgressIndicator fillColor="rgb(209 213 219)" />
     Attachment
 </div>
-{:then src}
-{#if src}
-<div>
-    <img {src} class="max-h-52 max-w-96 rounded-lg" alt="attachment" />
-</div>
+{:then attachment}
+{#if attachment}
+    {#if attachment.type.slice(0, 5) == "image"}
+    <div>
+        <img src={attachment.url} class="max-h-52 max-w-96 rounded-lg" alt="attachment" />
+    </div>
+    {:else}
+    <h1 class="px-5 py-2 break-words text-gray-300 border-2 border-gray-300">{attachment.name}</h1>
+    {/if}
 {:else}
 <h1 class="px-5 py-2 break-words text-gray-300 border-2 border-gray-300">Couldn't load the attachment</h1>
 {/if}
