@@ -201,7 +201,7 @@ const getUserGroupChatsWithNoNameQuery = db.prepare(`
 `);
 
 // ! I HAVE NO IDEA WHAT I'M DOING
-const getSearchResultsTransaction = db.transaction((username: string, search: string) => {
+const getSearchResultsTransaction = db.transaction((username: string, search: string, includeChats: boolean) => {
     const searchParam = `${search}%`;
     const users = searchUsersQuery.all(searchParam) as string[];
 
@@ -212,40 +212,38 @@ const getSearchResultsTransaction = db.transaction((username: string, search: st
         }
     }
 
-    if (users.length < MAX_SEARCH_RESULTS) {
-        const chats = getUserGroupChatsByNameQuery.all(username, searchParam, MAX_SEARCH_RESULTS - users.length) as { id: number, cover_id: number|null, name: string }[];
-        let remaining = MAX_SEARCH_RESULTS - users.length - chats.length;
+    if (!includeChats || users.length >= MAX_SEARCH_RESULTS) return { users } as SearchResult
+    
+    const chats = getUserGroupChatsByNameQuery.all(username, searchParam, MAX_SEARCH_RESULTS - users.length) as { id: number, cover_id: number|null, name: string }[];
+    let remaining = MAX_SEARCH_RESULTS - users.length - chats.length;
 
-        if (remaining > 0) { // ? try to find chats by members' usernames
-            const namelessChats = getUserGroupChatsWithNoNameQuery.all(username) as { id: number, cover_id: number|null, name: string }[];
-            const compressedSearch = search.replace(/\s+/g, '');
+    if (remaining > 0) { // ? try to find chats by members' usernames
+        const namelessChats = getUserGroupChatsWithNoNameQuery.all(username) as { id: number, cover_id: number|null, name: string }[];
+        const compressedSearch = search.replace(/\s+/g, '');
+        
+        for (let c of namelessChats) {
+            const members = getChatMembersQuery.all(c.id) as string[];
             
-            for (let c of namelessChats) {
-                const members = getChatMembersQuery.all(c.id) as string[];
-                
-                const joinedMembers = members.join();
+            const joinedMembers = members.join();
 
-                if (compareTwoStrings(compressedSearch, joinedMembers) > 0.5) {
-                    c.name = members.join(', ');
-                    chats.push(c);
+            if (compareTwoStrings(compressedSearch, joinedMembers) > 0.5) {
+                c.name = members.join(', ');
+                chats.push(c);
 
-                    remaining--;
-                    if (remaining === 0) break;
-                }
+                remaining--;
+                if (remaining === 0) break;
             }
         }
-
-        return { users, chats } as SearchResult
     }
 
-    return { users } as SearchResult
+    return { users, chats } as SearchResult
 });
 
 const getUserAvatarIdQuery = db.prepare("SELECT avatar_id FROM user WHERE username = ?").pluck(true);
 
 const dbCall = {   
-    searchChats(username: string, search: string) {
-        return getSearchResultsTransaction(username, search);
+    searchChats(username: string, search: string, includeChats: boolean) {
+        return getSearchResultsTransaction(username, search, includeChats);
     },
 
     getUserAvatarId(username: string) {

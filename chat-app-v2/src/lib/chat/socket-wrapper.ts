@@ -53,9 +53,9 @@ export class SocketWrapper {
         this.socket.disconnect();
     }
 
-    searchChats(search: string) {
+    search(search: string, includeChats: boolean) {
         return withTimeout<SearchResult>((resolve) => {
-            this.socket.emit("searchChats", search, (res: SearchResult) => resolve(res));
+            this.socket.emit("search", search, includeChats, (res: SearchResult) => resolve(res));
         });
     }
 

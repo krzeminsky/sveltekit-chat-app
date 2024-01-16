@@ -6,6 +6,7 @@ export interface ChatView {
     get displayName(): string;
 
     get id(): number|string;
+    get private(): boolean;
     get chatCover(): number|null|string;
     get messageGroups(): MessageGroup[];
 }
@@ -19,6 +20,7 @@ export class TempChat implements ChatView {
 
     get displayName() { return this.name }
     get id() { return this.name }
+    get private() { return true; }
     get chatCover() { return this.name }
     get messageGroups() { return [] }
 }
@@ -67,6 +69,10 @@ export class ChatTree implements ChatView {
 
     get id() {
         return this.chatInfo.id;
+    }
+
+    get private() {
+        return this.chatInfo.private == 1;
     }
 
     get messageGroups() {

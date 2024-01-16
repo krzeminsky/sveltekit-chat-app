@@ -8,14 +8,12 @@
     import TextInput from "$lib/components/form/text-input.svelte";
     import FormWrapper from "$lib/components/form/form-wrapper.svelte";
     import SubmitButton from "$lib/components/form/submit-button.svelte";
+    import EditableChatCover from "$lib/components/utils/editable-chat-cover.svelte";
 
     export let data: LayoutData;
 
-    let showAvatarEditDialog = false;
-
-
-    let showUsernameEditDialog = false;
-    let awaitingForUsernameEditAction = false;
+    let editAvatarDialog: Dialog;
+    let editUsernameDialog: Dialog;
 
     let uploadAvatarForm: HTMLFormElement;
 
@@ -26,21 +24,9 @@
 
 {#if data && data.session}
 <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 mt-14 flex gap-4 items-center">
-    <div class="relative h-32 w-32 rounded-full overflow-hidden">
-        <button class="peer" on:click={() => showAvatarEditDialog = true}>
-            {#if mounted}
-            <UserAvatar urlPromise={fetchUserAvatar(data.avatar)} size={128}/>
-            {:else}
-            <div class="aspect-square h-32"/>
-            {/if}
-        </button>
+    <EditableChatCover size={128} urlPromise={fetchUserAvatar(data.avatar)} on:click={editAvatarDialog.showDialog}/>
 
-        <div class="absolute top-0 left-0 pointer-events-none w-full h-full bg-black bg-opacity-30 z-10 opacity-0 peer-hover:opacity-100 transition-all">
-            <img src="icons/edit-white.svg" alt="edit" class="absolute h-16 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"/>
-        </div>
-    </div>
-
-    <button class="group flex items-center gap-2" on:click={() => showUsernameEditDialog = true}>
+    <button class="group flex items-center gap-2" on:click={editUsernameDialog.showDialog}>
         <h1 class="text-3xl">{data.session.user.username}</h1>
         
         <img src="icons/edit.svg" alt="edit" class="opacity-0 group-hover:opacity-100 transition-all"/>
@@ -48,14 +34,9 @@
 </div>
 {/if}
 
-<Dialog title="Edit avatar" bind:show={showAvatarEditDialog}>
+<Dialog title="Edit avatar" bind:this={editAvatarDialog}>
     <div class="flex gap-16">
-        <form method="POST" action="?/uploadAvatar" enctype="multipart/form-data" bind:this={uploadAvatarForm} use:enhance={() => {
-            return async ({ update }) => {
-                await update();
-                showAvatarEditDialog = false;
-            }
-        }}>
+        <form method="POST" action="?/uploadAvatar" enctype="multipart/form-data" use:enhance on:submit bind:this={uploadAvatarForm}>
             <label class="icon-button">
                 <img src="icons/upload.svg" alt="upload"/>
                 
@@ -65,12 +46,7 @@
             </label>
         </form>
     
-        <form method="POST" action="?/deleteAvatar"use:enhance={() => {
-            return async ({ update }) => {
-                await update();
-                showAvatarEditDialog = false;
-            }
-        }}>
+        <form method="POST" action="?/deleteAvatar" on:submit use:enhance>
             <button class="icon-button">
                 <img src="icons/delete.svg" alt="delete"/>
         
@@ -80,21 +56,12 @@
     </div>
 </Dialog>
 
-<Dialog title="Edit username" bind:show={showUsernameEditDialog}>
+<Dialog title="Edit username" bind:this={editUsernameDialog}>
     <FormWrapper center={false}>
-        <form class="flex flex-col gap-2" method="POST" action="?/changeUsername" use:enhance={() => {
-            awaitingForUsernameEditAction = true;
-
-            return async ({ update }) => {
-                await update();
-
-                awaitingForUsernameEditAction = false;
-                showUsernameEditDialog = false;
-            }
-        }}>
+        <form class="flex flex-col gap-2" method="POST" action="?/changeUsername" on:submit use:enhance>
             <TextInput name="newUsername" label="New username" placeholder="New username" maxlength={16} description="Max 16 non-special characters"/>
 
-            <SubmitButton disabled={true} awaitingResponse={awaitingForUsernameEditAction} />
+            <SubmitButton disabled={true} />
 
             <small>Database was not designed with changing nicknames in mind, I'm too lazy to remake it</small>
         </form>

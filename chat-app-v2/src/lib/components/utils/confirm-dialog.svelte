@@ -2,16 +2,13 @@
     import Dialog from "./dialog.svelte";
 
     export let title: string;
-    
-    let action: () => void;
-    let show = false;
+    export let action: () => void;
 
-    export function showDialog(onConfirm: () => void) {
-        show = true;
-        action = onConfirm;
-    }
+    let dialog: Dialog;
+    
+    export function showDialog() { dialog.showDialog(); }
 </script>
 
-<Dialog {title} bind:show>
-    <button on:click={() => { action(); show = false; }}>Confirm</button>
+<Dialog {title} bind:this={dialog}>
+    <button on:click={() => { action(); dialog.closeDialog() }}>Confirm</button>
 </Dialog>

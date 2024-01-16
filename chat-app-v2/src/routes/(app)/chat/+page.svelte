@@ -11,6 +11,9 @@
     import { getChatCover } from "$lib/utils/get-chat-cover";
     import MessageGroup from "$lib/components/chat/message-group.svelte";
     import AttachmentList from "$lib/components/chat/attachment-list.svelte";
+    import Search from "$lib/components/utils/search.svelte";
+    import CreateGroupChatDialog from "$lib/components/utils/create-group-chat-dialog.svelte";
+    import EditableChatCover from "$lib/components/utils/editable-chat-cover.svelte";
 
     export let data: PageData;
 
@@ -22,16 +25,19 @@
 
     let isTabFocused = false;
 
-    let searchValue: string;
-    let searchTimer: NodeJS.Timeout;
-    let searchResults: SearchResult|undefined;
-
     let includedAttachments: File[] = [];
     let draftMessageValue = '';
 
     let chatWindow: HTMLElement;
     let savedScrollTop = 0;
     let pendingMessageRequest = false;
+
+    let chatSearchValue: string;
+    let chatSearchResults: SearchResult;
+
+    let createGroupChatDialog: CreateGroupChatDialog;
+
+    let showChatOptions = true;
 
     /*
     TODO:
@@ -182,13 +188,6 @@
         },
     });
 
-    $: {
-        if (searchValue) {
-            clearTimeout(searchTimer);
-            searchTimer = setTimeout(search, 1000);
-        } else searchResults = undefined;
-    }
-
     onDestroy(() => {
         socket.dispose();
     });
@@ -200,22 +199,19 @@
         }
     })
 
-    async function search() {
-        const results = await socket.searchChats(searchValue);
-        if (searchValue) searchResults = results;
-    }
+    async function getChat(target: number|string) {        
+        if (typeof target === "string") {
+            const chat = chatList.array.find(c => c.otherMember.username == target);
+            if (chat) return chat;
+        } else if (chatTrees.has(target)) return chatTrees.get(target)!;
+        
+        const chatData = await socket.getChatData(target);
+        if (!chatData) return null;
 
-    async function getChat(chatId: number) {        
-        if (chatTrees.has(chatId)) return chatTrees.get(chatId)!;
-        else {
-            const chatData = await socket.getChatData(chatId);
-            if (!chatData) return null;
+        const chat = new ChatTree(socketUsername, chatData);
+        chatTrees.set(chatData.chat.id, chat);
 
-            const chat = new ChatTree(socketUsername, chatData);
-            chatTrees.set(chatId, chat);
-
-            return chat;
-        }
+        return chat;
     }
 
     function getChatOrCallbackIfExists(chatId: number, onExists: (chat: ChatTree) => void) {
@@ -233,10 +229,6 @@
         })
     }
 
-    function getCover(coverId: number|null|string) {
-        return getChatCover(coverId, socket.attachmentHandler);
-    }
-
     function playNotificationSound() {
         if (!isTabFocused) new Audio("audio/notification.mp3").play();
     }
@@ -247,7 +239,9 @@
         if (currentChat && currentChat.id === target) return;
 
         if (typeof target === "string") {
-            currentChat = new TempChat(target); 
+            const chat = await getChat(target);
+             
+            currentChat = chat??new TempChat(target); 
         } else {
             const chat = await getChat(target);
             
@@ -290,7 +284,7 @@
         draftMessageValue = '';
     }
 
-    async function onChatScroll(e: Event) {
+    async function onChatScroll() {
         savedScrollTop = chatWindow.scrollTop;
 
         if (pendingMessageRequest) return;
@@ -321,24 +315,33 @@
             pendingMessageRequest = false;
         }
     }
+
+    function showCreateGroupChatDialog() {
+        if (!currentChat) return;
+        
+        createGroupChatDialog.showDialog(currentChat);
+    }
+
+    function createGroupChat(members: string[]) {
+        socket.createGroupChat(members);
+    }
 </script>
 
 <svelte:window on:focus={() => isTabFocused = true} on:blur={() => isTabFocused = false} />
 
 <div class="absolute w-full h-full flex">
-    <div id="chat-list" class="relative w-96 mt-14 flex flex-col shadow-lg overflow-y-auto">
-        <div class="w-full p-4">
-            <h1 class="text-3xl text-gradient">Chats</h1>
-            <input type="search" placeholder="Search..." class="w-full mt-2 px-4 py-2 border-2 focus:outline-none rounded-full" bind:value={searchValue}/>
+    <div id="chat-list" class="relative w-96 mt-14 flex flex-col shadow-lg overflow-y-auto p-4">
+        <div class="w-full">
+            <Search label="Chats" searchHandler={(val) => socket.search(val, true)} bind:searchValue={chatSearchValue} bind:searchResults={chatSearchResults} />
         </div>
 
-        <div class="relative p-4 flex-1">
-            {#if !searchValue && chatList.empty}
+        <div class="relative pt-8 flex-1">
+            {#if !chatSearchValue && chatList.empty}
             <h1 class="center-text-placeholder">Future chats will be displayed here</h1>
             {:else}
-                {#if searchValue}
-                    {#if searchResults}
-                    <ChatList items={searchResults} attachmentHandler={socket.attachmentHandler} on:onItemClick={openChat}/>
+                {#if chatSearchValue}
+                    {#if chatSearchResults}
+                    <ChatList items={chatSearchResults} attachmentHandler={socket.attachmentHandler} on:onItemClick={openChat}/>
                     {/if}
                 {:else}
                 <ChatList items={chatList.array} attachmentHandler={socket.attachmentHandler} on:onItemClick={openChat}/>
@@ -351,18 +354,20 @@
         {#if currentChat}
         <div class="w-full h-16 flex items-center justify-between">
             <div class="flex items-center gap-2">
-                <UserAvatar size={44} urlPromise={getCover(currentChat.chatCover)} />
+                <UserAvatar size={44} urlPromise={getChatCover(currentChat.chatCover, socket.attachmentHandler)} />
                 <h1 class="text-xl">{currentChat.displayName}</h1>
             </div>
 
-            <button class="bg-none hover:bg-gray-100 active:bg-gray-200 transition-all rounded-full">
-                <img src="icons/more.svg" alt="chat options" class="p-2" />
-            </button>
+            <div class="flex gap-2">
+                <button class="bg-none hover:bg-gray-100 active:bg-gray-200 transition-all rounded-full" on:click={() => showChatOptions = !showChatOptions}>
+                    <img src="icons/more.svg" alt="switch chat optiosn visibility" class="p-2" />
+                </button>
+            </div>
         </div>
 
         <div class="flex-1 flex flex-col-reverse gap-2 overflow-y-auto pr-1 overscroll-y-none" role="feed" bind:this={chatWindow} on:scroll={onChatScroll} on:dragover|preventDefault on:drop={onDrop}>            
             {#each currentChat.messageGroups as group (group.id)}
-            <MessageGroup {group} attachmentHandler={socket.attachmentHandler} {socketUsername} on:deleteMessage on:deleteMessage />
+            <MessageGroup {group} attachmentHandler={socket.attachmentHandler} {socketUsername} on:deleteMessage />
             {/each}
         </div>
 
@@ -383,4 +388,19 @@
         <h1 class="center-text-placeholder">No chat opened</h1>
         {/if}
     </div>
+
+    {#if showChatOptions && currentChat}
+    <div class="w-80 mt-24 p-4 shadow-lg">
+        <div class="flex flex-col items-center w-full p-4">
+            {#if currentChat.private}
+            <UserAvatar size={80} urlPromise={getChatCover(currentChat.chatCover, socket.attachmentHandler)} />
+            {:else}
+            <EditableChatCover size={80} urlPromise={getChatCover(currentChat.chatCover, socket.attachmentHandler)} />
+            {/if}
+            <h1 class="hide-text-overflow">{currentChat.displayName}</h1>
+        </div>
+    </div>
+    {/if}
 </div>
+
+<CreateGroupChatDialog {createGroupChat} attachmentHandler={socket.attachmentHandler} searchHandler={(val) => socket.search(val, false)} bind:this={createGroupChatDialog} />

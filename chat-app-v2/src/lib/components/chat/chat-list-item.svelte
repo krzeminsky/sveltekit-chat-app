@@ -5,7 +5,7 @@
     export let coverUrlPromise: Promise<string>;
 </script>
 
-<button on:click class="h-16 w-full flex gap-3 p-2 items-center rounded-2xl transition-all hover:bg-indigo-50">
+<button type="button" on:click class="h-16 w-full flex gap-3 p-2 items-center rounded-2xl transition-all hover:bg-indigo-50">
     <UserAvatar size={52} urlPromise={coverUrlPromise} />
     
     <div class="min-w-0 flex-1 text-left">

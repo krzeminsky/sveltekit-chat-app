@@ -66,5 +66,3 @@
         </div>
     </div>
 </div>
-
-<ConfirmDialog title="Delete message?" bind:this={deleteMessageDialog}/>

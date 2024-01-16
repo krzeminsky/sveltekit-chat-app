@@ -62,10 +62,10 @@ io.on('connection', socket => {
 
     socket.emit('connected', dbCall.getLatestChatMessages(name));
 
-    socket.on('searchChats', (search: string, callback) => {
-        if (typeof search !== "string" || typeof callback !== "function" || search.length <= 0 || search.length > 32) return;
+    socket.on('search', (search: string, includeChats: boolean, callback) => {
+        if (typeof search !== "string" || typeof includeChats !== "boolean" || typeof callback !== "function" || search.length <= 0 || search.length > 32) return;
 
-        callback(dbCall.searchChats(name, search.toLowerCase()));
+        callback(dbCall.searchChats(name, search.toLowerCase(), includeChats));
     });
 
     socket.on('getUserAvatar', (other: string, callback) => {
