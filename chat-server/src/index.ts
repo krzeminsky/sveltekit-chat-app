@@ -264,15 +264,15 @@ io.on('connection', socket => {
     });
 
     // ? anyone can change group chat photo
-    socket.on('setChatCover', (chatId: number, chatCover: { buffer: Buffer, type: string, name: string }|null) => {
+    socket.on('setChatCover', async (chatId: number, chatCover: { buffer: Buffer, type: string, name: string }|null) => {
         if (isNaN(chatId) || dbCall.isChatPrivate(chatId) || !dbCall.isChatMember(name, chatId)) return;
 
         let coverId;
 
         if (chatCover) {
-            if (chatCover.type.slice(0, 5) == "image") return;
+            if (chatCover.type.slice(0, 5) != "image") return;
 
-            coverId = dbCall.setChatCover(chatId, chatCover.buffer, chatCover.type, chatCover.name);
+            coverId = await dbCall.setChatCover(chatId, chatCover.buffer, chatCover.type, chatCover.name);
         } else {
             dbCall.removeChatCover(chatId);
 

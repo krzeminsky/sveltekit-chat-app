@@ -14,6 +14,8 @@
     import Search from "$lib/components/utils/search.svelte";
     import CreateGroupChatDialog from "$lib/components/utils/create-group-chat-dialog.svelte";
     import EditableChatCover from "$lib/components/utils/editable-chat-cover.svelte";
+    import EditableText from "$lib/components/utils/editable-text.svelte";
+    import ChatCoverUploadDialog from "$lib/components/utils/chat-cover-upload-dialog.svelte";
 
     export let data: PageData;
 
@@ -36,6 +38,7 @@
     let chatSearchResults: SearchResult;
 
     let createGroupChatDialog: CreateGroupChatDialog;
+    let chatCoverUploadDialog: ChatCoverUploadDialog;
 
     let showChatOptions = true;
 
@@ -325,6 +328,15 @@
     function createGroupChat(members: string[]) {
         socket.createGroupChat(members);
     }
+
+    function uploadChatCover(ev: CustomEvent<File|null>) {        
+        if (!ev.detail) return;
+        if (currentChat && typeof currentChat.id === "number") socket.setChatCover(currentChat.id, { buffer: ev.detail as unknown as Buffer, name: ev.detail.name, type: ev.detail.type })
+    }
+
+    function deleteChatCover() {
+        if (currentChat && typeof currentChat.id === "number") socket.setChatCover(currentChat.id, null);
+    }
 </script>
 
 <svelte:window on:focus={() => isTabFocused = true} on:blur={() => isTabFocused = false} />
@@ -394,13 +406,15 @@
         <div class="flex flex-col items-center w-full p-4">
             {#if currentChat.private}
             <UserAvatar size={80} urlPromise={getChatCover(currentChat.chatCover, socket.attachmentHandler)} />
-            {:else}
-            <EditableChatCover size={80} urlPromise={getChatCover(currentChat.chatCover, socket.attachmentHandler)} />
-            {/if}
             <h1 class="hide-text-overflow">{currentChat.displayName}</h1>
+            {:else}
+            <EditableChatCover size={80} urlPromise={getChatCover(currentChat.chatCover, socket.attachmentHandler)} on:click={chatCoverUploadDialog.showDialog} />
+            <EditableText value={currentChat.displayName} />
+            {/if}
         </div>
     </div>
     {/if}
 </div>
 
 <CreateGroupChatDialog {createGroupChat} attachmentHandler={socket.attachmentHandler} searchHandler={(val) => socket.search(val, false)} bind:this={createGroupChatDialog} />
+<ChatCoverUploadDialog on:uploadCover={uploadChatCover} on:deleteCover={deleteChatCover} bind:this={chatCoverUploadDialog}/>

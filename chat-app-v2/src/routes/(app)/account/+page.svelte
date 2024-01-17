@@ -9,6 +9,7 @@
     import FormWrapper from "$lib/components/form/form-wrapper.svelte";
     import SubmitButton from "$lib/components/form/submit-button.svelte";
     import EditableChatCover from "$lib/components/utils/editable-chat-cover.svelte";
+    import EditableText from "$lib/components/utils/editable-text.svelte";
 
     export let data: LayoutData;
 
@@ -23,14 +24,10 @@
 </script>
 
 {#if data && data.session}
-<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 mt-14 flex gap-4 items-center">
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 mt-14 flex gap-4 items-center text-3xl">
     <EditableChatCover size={128} urlPromise={fetchUserAvatar(data.avatar)} on:click={editAvatarDialog.showDialog}/>
 
-    <button class="group flex items-center gap-2" on:click={editUsernameDialog.showDialog}>
-        <h1 class="text-3xl">{data.session.user.username}</h1>
-        
-        <img src="icons/edit.svg" alt="edit" class="opacity-0 group-hover:opacity-100 transition-all"/>
-    </button>
+    <EditableText value={data.session.user.username} on:click={editUsernameDialog.showDialog}/>
 </div>
 {/if}
 

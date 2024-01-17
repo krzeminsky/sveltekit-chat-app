@@ -371,10 +371,10 @@ const dbCall = {
         updateChatCoverIdStmnt.run(null, chatId);
     },
 
-    setChatCover(chatId: number, buffer: Buffer, type: string, name: string) {
+    async setChatCover(chatId: number, buffer: Buffer, type: string, name: string) {
         this.removeChatCover(chatId);
 
-        const coverId = this.insertAttachment(chatId, buffer, type, name);
+        const coverId = await this.insertAttachment(chatId, buffer, type, name);
 
         updateChatCoverIdStmnt.run(coverId, chatId);
 
