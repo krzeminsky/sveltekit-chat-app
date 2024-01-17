@@ -16,6 +16,7 @@
     import EditableChatCover from "$lib/components/utils/editable-chat-cover.svelte";
     import EditableText from "$lib/components/utils/editable-text.svelte";
     import ChatCoverUploadDialog from "$lib/components/utils/chat-cover-upload-dialog.svelte";
+    import ChatNameEditDialog from "$lib/components/utils/chat-name-edit-dialog.svelte";
 
     export let data: PageData;
 
@@ -39,6 +40,7 @@
 
     let createGroupChatDialog: CreateGroupChatDialog;
     let chatCoverUploadDialog: ChatCoverUploadDialog;
+    let chatNameEditDialog: ChatNameEditDialog;
 
     let showChatOptions = true;
 
@@ -337,6 +339,10 @@
     function deleteChatCover() {
         if (currentChat && typeof currentChat.id === "number") socket.setChatCover(currentChat.id, null);
     }
+
+    function setChatName(e: CustomEvent<string>) {
+        if (currentChat && typeof currentChat.id === "number") socket.setChatName(currentChat.id, e.detail);
+    }
 </script>
 
 <svelte:window on:focus={() => isTabFocused = true} on:blur={() => isTabFocused = false} />
@@ -402,19 +408,27 @@
     </div>
 
     {#if showChatOptions && currentChat}
-    <div class="w-80 mt-24 p-4 shadow-lg">
-        <div class="flex flex-col items-center w-full p-4">
+    <div class="w-80 mt-24 p-4 shadow-lg flex flex-col gap-2">
+        <div class="flex flex-col items-center gap-2 w-full p-4">
             {#if currentChat.private}
             <UserAvatar size={80} urlPromise={getChatCover(currentChat.chatCover, socket.attachmentHandler)} />
             <h1 class="hide-text-overflow">{currentChat.displayName}</h1>
             {:else}
             <EditableChatCover size={80} urlPromise={getChatCover(currentChat.chatCover, socket.attachmentHandler)} on:click={chatCoverUploadDialog.showDialog} />
-            <EditableText value={currentChat.displayName} />
+            <EditableText value={currentChat.displayName} on:click={chatNameEditDialog.showDialog}  />
             {/if}
         </div>
+
+        {#if currentChat.private}
+        <button class="w-fit text-left px-4 py-2 bg-transparent hover:bg-gray-100 active:bg-gray-200 rounded-full transition-all" on:click={showCreateGroupChatDialog}>
+            <img src="icons/group-add.svg" alt="create group chat" class="inline-block mr-1" />
+            <span class="align-middle">Create group chat</span>
+        </button>
+        {/if}
     </div>
     {/if}
 </div>
 
 <CreateGroupChatDialog {createGroupChat} attachmentHandler={socket.attachmentHandler} searchHandler={(val) => socket.search(val, false)} bind:this={createGroupChatDialog} />
 <ChatCoverUploadDialog on:uploadCover={uploadChatCover} on:deleteCover={deleteChatCover} bind:this={chatCoverUploadDialog}/>
+<ChatNameEditDialog originalValue={currentChat?.displayName} on:nameSet={setChatName} bind:this={chatNameEditDialog} />

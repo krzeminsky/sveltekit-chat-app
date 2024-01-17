@@ -253,7 +253,7 @@ io.on('connection', socket => {
     socket.on('setChatName', (chatId: number, chatName: string|null) => {
         if (isNaN(chatId) || dbCall.isChatPrivate(chatId) || !dbCall.isChatMember(name, chatId)) return;
 
-        if (typeof chatName !== "string") chatName = null;
+        if (typeof chatName !== "string" || !chatName) chatName = null;
         else chatName = chatName.slice(0, MAX_CHAT_NAME_LENGTH);
 
         dbCall.updateChatName(chatId, chatName);

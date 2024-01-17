@@ -1,6 +1,6 @@
 <script lang="ts">
     export let name: string;
-    export let label: string;
+    export let label: string = "";
     export let placeholder = "";
     export let type = "text";
     export let autocomplete = "nope";
