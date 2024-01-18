@@ -4,6 +4,7 @@ import { type ChatData, type ChatMember, type Message } from "./types";
 
 export interface ChatView {
     get displayName(): string;
+    get chatName(): string|null;
 
     get id(): number|string;
     get private(): boolean;
@@ -22,6 +23,7 @@ export class TempChat implements ChatView {
     }
 
     get displayName() { return this.name }
+    get chatName() { return this.name }
     get id() { return this.name }
     get private() { return true; }
     get chatCover() { return this.name }
@@ -73,6 +75,10 @@ export class ChatTree implements ChatView {
         } else {
             return this.chatInfo.name??this.members.map(m => m.username).join(', ');
         }
+    }
+
+    get chatName() {
+        return this.chatInfo.name;
     }
 
     get chatCover() {

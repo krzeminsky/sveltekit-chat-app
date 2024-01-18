@@ -18,6 +18,7 @@
     import ChatCoverUploadDialog from "$lib/components/utils/chat-cover-upload-dialog.svelte";
     import EditTextDialog from "$lib/components/utils/edit-text-dialog.svelte";
     import ListDropdown from "$lib/components/utils/list-dropdown.svelte";
+    import ChatMemberList from "$lib/components/chat/chat-member-list.svelte";
 
     export let data: PageData;
 
@@ -333,7 +334,7 @@
     }
 
     function editChatName() {
-        editTextDialog.showDialog(currentChat!.displayName, "Edit chat name", "Chat name", setChatName);
+        editTextDialog.showDialog(currentChat!.chatName??'', "Edit chat name", "Chat name", setChatName);
     }
 
     function editNickname(member: ChatMember) {
@@ -384,6 +385,18 @@
             }
         }
     }
+
+    function changeChatMemberRank(ev: CustomEvent<string>) {
+        socket.changeChatMemberRank(currentChat!.id as number, ev.detail);
+    }
+
+    function leaveGroupChat() {
+        socket.leaveGroupChat(currentChat!.id as number);
+    }
+
+    function removeChatMember(ev: CustomEvent<string>) {
+        socket.removeChatMember(currentChat!.id as number, ev.detail);
+    }
 </script>
 
 <svelte:window on:focus={() => isTabFocused = true} on:blur={() => isTabFocused = false} />
@@ -419,7 +432,7 @@
 
             <div class="flex gap-2">
                 <button class="bg-none hover:bg-gray-100 active:bg-gray-200 transition-all rounded-full" on:click={() => showChatOptions = !showChatOptions}>
-                    <img src="icons/more.svg" alt="switch chat optiosn visibility" class="p-2" />
+                    <img src="icons/more.svg" alt="switch chat options visibility" class="p-2" />
                 </button>
             </div>
         </div>
@@ -460,6 +473,8 @@
             {/if}
         </div>
 
+        <!--TODO: Adding chat members-->
+
         {#if currentChat.private}
         <button class="fill-gray-button" on:click={showCreateGroupChatDialog}>
             <img src="icons/group-add.svg" alt="create group chat" class="inline-block mr-1" />
@@ -467,14 +482,13 @@
         </button>
         {/if}
 
-        <ListDropdown name="Chat members">
-            {#each currentChat.members as m}
-            <button class="fill-gray-button">
-                <UserAvatar urlPromise={getChatCover(m.username, socket.attachmentHandler)} size={28} />
-                <span class="ml-1 align-middle">{m.username}</span>
-            </button>
-            {/each}
-        </ListDropdown>
+        <ChatMemberList chat={currentChat} attachmentHandler={socket.attachmentHandler} {socketUsername} 
+            on:blockMember
+            on:changeRank={changeChatMemberRank}
+            on:leaveChat={leaveGroupChat}
+            on:message={openChat}
+            on:removeMember={removeChatMember}
+        />
 
         <ListDropdown name="Nicknames">
             {#each currentChat.members as m}

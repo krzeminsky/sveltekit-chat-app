@@ -225,10 +225,12 @@ io.on('connection', socket => {
         if (isNaN(chatId) || typeof other !== "string" || !dbCall.isChatMember(other, chatId)) return;
 
         const rank = dbCall.getChatMemberRank(name, chatId);
-        if (!rank || rank === 0) return; // ? socket is not a chat member or is not an admin
-        
+        if (typeof rank !== "number" || rank === 0) return; // ? socket is not a chat member or is not an admin
+
+
         const otherRank = dbCall.getChatMemberRank(other, chatId);
-        if (!otherRank || otherRank === 2) return; // ? can't remove the chat owner
+        if (typeof otherRank !== "number" || otherRank === 2) return; // ? can't remove the chat owner
+
 
         dbCall.removeChatMember(chatId, other);
         
@@ -311,10 +313,10 @@ io.on('connection', socket => {
             || name == other) return;
 
         const userRank = dbCall.getChatMemberRank(name, chatId);
-        if (!userRank || userRank === 0) return;
+        if (typeof userRank !== "number" || userRank === 0) return;
 
         const otherRank = dbCall.getChatMemberRank(other, chatId);
-        if (!otherRank || otherRank === 2) return;
+        if (typeof otherRank !== "number" || otherRank === 2) return;
 
         const rank = +(otherRank !== 1);
 
