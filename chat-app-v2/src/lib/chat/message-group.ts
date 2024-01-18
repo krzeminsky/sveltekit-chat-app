@@ -1,3 +1,4 @@
+import type { ChatTree } from "./chat-view";
 import type { Message } from "./types";
 
 const NEW_GROUP_TIME_DIFFERENCE_THRESHOLD = 1000 * 60 * 2; // ? 2 minutes
@@ -6,6 +7,7 @@ let messageGroupCount = 0;
 
 export class MessageGroup {
     messages: Message[]; // ? this array most of the time won't be big enough to make it a linked list
+    tree: ChatTree;
     username: string;
     id: number;
 
@@ -13,7 +15,8 @@ export class MessageGroup {
     get firstMessage() { return this.messages[0] }
     get lastTimestamp() { return this.lastMessage.timestamp; }
 
-    constructor(message: Message) {
+    constructor(tree: ChatTree, message: Message) {
+        this.tree = tree;
         this.username = message.username;
         this.messages = [message];
 

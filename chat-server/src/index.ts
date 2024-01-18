@@ -147,21 +147,25 @@ io.on('connection', socket => {
         broadcastEvent(dbCall.getChatMembers(owner.chat_id), 'messageDeleted', messageId, owner.chat_id);
     });
 
-    socket.on('createGroupChat', (otherMembers: string[]) => {
+    socket.on('createChat', (otherMembers: string[], callback) => {
         if (!Array.isArray(otherMembers) || !otherMembers.every(m => typeof m === "string")) return;
 
         otherMembers = otherMembers.filter(m => dbCall.userExists(m));
-        if (otherMembers.length < 2) return;
+        if (otherMembers.length < 1) return;
 
         const targets = [name, ...otherMembers];
         const id = dbCall.createChat(targets);
 
         const data = dbCall.getChatData(id);
 
-        const systemMessage = dbCall.insertMessage("", `${name} created the group chat`, id, 0);
+        let systemMessage;
+        if (targets.length > 2) {
+            systemMessage = dbCall.insertMessage("", `${name} created the group chat`, id, 0);
+        } 
 
         // ? first member of targets is the creator
-        broadcastEvent(targets, 'groupChatCreated', data, systemMessage); // ? chatId, members
+        broadcastEvent(targets, 'chatCreated', data, systemMessage); // ? chatId, members
+        if (typeof callback === "function") callback();
     });
 
     // ? if its a group chat and the socket is the creator of the group chat - delete the chat, if its a private convo - update the break point for the socket
@@ -291,8 +295,8 @@ io.on('connection', socket => {
             || !dbCall.isChatMember(name, chatId) 
             || (name != other && !dbCall.isChatMember(other, chatId))) return;
 
-        if (typeof nickname === "string") nickname = nickname.slice(0, MAX_NICKANAME_LENGTH);
-        else nickname = null;
+        if (typeof nickname !== "string" || !nickname) nickname = null;
+        else nickname = nickname.slice(0, MAX_NICKANAME_LENGTH);
 
         dbCall.updateChatMemberNickname(chatId, other, nickname);
         

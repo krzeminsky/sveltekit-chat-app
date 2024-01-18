@@ -8,7 +8,7 @@ type SocketEvents = {
     connected: (chatData: { chat: Chat, members: ChatMember[], messages: Message[] }[]) => void;
     messageReceived: (message: Message) => void;
     messageDeleted: (messageId: number, chatId: number) => void;
-    groupChatCreated: (chatData: ChatData, systemMessage: Message) => void;
+    chatCreated: (chatData: ChatData, systemMessage?: Message) => void;
     groupChatDeleted: (chatId: number) => void;
     chatMemberLeft: (chatId: number, member: string, newOwner: string|undefined, systemMessage: Message) => void;
     chatMemberAdded: (chatId: number, member: string, systemMessage: Message) => void;
@@ -25,7 +25,7 @@ function registerSocketEvents(socket: Socket, events: SocketEvents) {
     socket.on('connected', events.connected);
     socket.on('messageReceived', events.messageReceived);
     socket.on('messageDeleted', events.messageDeleted);
-    socket.on('groupChatCreated', events.groupChatCreated);
+    socket.on('chatCreated', events.chatCreated);
     socket.on('groupChatDeleted', events.groupChatDeleted);
     socket.on('chatMemberLeft', events.chatMemberLeft);
     socket.on('chatMemberAdded', events.chatMemberAdded);
@@ -73,8 +73,8 @@ export class SocketWrapper {
         this.socket.emit("deleteMessage", messageId);
     }
 
-    createGroupChat(otherUsers: string[]) {
-        this.socket.emit("createGroupChat", otherUsers);
+    createChat(otherUsers: string[]) {
+        return withTimeout<void>(r => this.socket.emit("createChat", otherUsers, () => r()));
     }
 
     deleteChat(chatId: number) {

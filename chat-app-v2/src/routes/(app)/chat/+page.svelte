@@ -16,7 +16,8 @@
     import EditableChatCover from "$lib/components/utils/editable-chat-cover.svelte";
     import EditableText from "$lib/components/utils/editable-text.svelte";
     import ChatCoverUploadDialog from "$lib/components/utils/chat-cover-upload-dialog.svelte";
-    import ChatNameEditDialog from "$lib/components/utils/chat-name-edit-dialog.svelte";
+    import EditTextDialog from "$lib/components/utils/edit-text-dialog.svelte";
+    import ListDropdown from "$lib/components/utils/list-dropdown.svelte";
 
     export let data: PageData;
 
@@ -40,7 +41,7 @@
 
     let createGroupChatDialog: CreateGroupChatDialog;
     let chatCoverUploadDialog: ChatCoverUploadDialog;
-    let chatNameEditDialog: ChatNameEditDialog;
+    let editTextDialog: EditTextDialog;
 
     let showChatOptions = true;
 
@@ -91,9 +92,9 @@
             });
         },
 
-        groupChatCreated(chatData, systemMessage) {
+        chatCreated(chatData, systemMessage) {
             const chat = new ChatTree(socketUsername, chatData);
-            chat.pushMessage(systemMessage);
+            if (systemMessage) chat.pushMessage(systemMessage);
 
             chatList.insertOrPushToFront(chat);
             chatList = chatList;
@@ -246,7 +247,7 @@
         if (typeof target === "string") {
             const chat = await getChat(target);
              
-            currentChat = chat??new TempChat(target); 
+            currentChat = chat??new TempChat(target, data.session!.user.username); 
         } else {
             const chat = await getChat(target);
             
@@ -328,9 +329,18 @@
     }
 
     function createGroupChat(members: string[]) {
-        socket.createGroupChat(members);
+        socket.createChat(members);
     }
 
+    function editChatName() {
+        editTextDialog.showDialog(currentChat!.displayName, "Edit chat name", "Chat name", setChatName);
+    }
+
+    function editNickname(member: ChatMember) {
+        editTextDialog.showDialog(member.nickname??'', "Edit nickname", member.username, v => setChatNickname(member.username, v));
+    }
+
+    // ? cant set private chat's cover, so there's no need to check if the chat exists
     function uploadChatCover(ev: CustomEvent<File|null>) {        
         if (!ev.detail) return;
         if (currentChat && typeof currentChat.id === "number") socket.setChatCover(currentChat.id, { buffer: ev.detail as unknown as Buffer, name: ev.detail.name, type: ev.detail.type })
@@ -340,8 +350,39 @@
         if (currentChat && typeof currentChat.id === "number") socket.setChatCover(currentChat.id, null);
     }
 
-    function setChatName(e: CustomEvent<string>) {
-        if (currentChat && typeof currentChat.id === "number") socket.setChatName(currentChat.id, e.detail);
+    // ? refactor angle
+    async function setChatName(val: string) {
+        if (currentChat) {
+            if (typeof currentChat.id === "number") socket.setChatName(currentChat.id, val);
+            else {
+                await socket.createChat([currentChat.displayName]);
+                const chat = (await getChat(currentChat.id))!;
+                
+                chatTrees.set(chat.id, chat);
+                chatList.insertOrPushToFront(chat);
+
+                socket.setChatName(chat.id, val);
+
+                chatList = chatList;
+            }
+        }
+    }
+
+    // ? refactor angle
+    async function setChatNickname(member: string, nickname: string) {
+        if (currentChat) {
+            if (typeof currentChat.id === "number") socket.setChatNickname(currentChat.id, member, nickname);
+            else {
+                await socket.createChat([currentChat.displayName]);
+                const chat = (await getChat(currentChat.id))!;
+                
+                chatTrees.set(chat.id, chat);
+                chatList.insertOrPushToFront(chat);
+
+                socket.setChatNickname(chat.id, member, nickname);
+                chatList = chatList;
+            }
+        }
     }
 </script>
 
@@ -415,20 +456,39 @@
             <h1 class="hide-text-overflow">{currentChat.displayName}</h1>
             {:else}
             <EditableChatCover size={80} urlPromise={getChatCover(currentChat.chatCover, socket.attachmentHandler)} on:click={chatCoverUploadDialog.showDialog} />
-            <EditableText value={currentChat.displayName} on:click={chatNameEditDialog.showDialog}  />
+            <EditableText value={currentChat.displayName} on:click={editChatName} />
             {/if}
         </div>
 
         {#if currentChat.private}
-        <button class="w-fit text-left px-4 py-2 bg-transparent hover:bg-gray-100 active:bg-gray-200 rounded-full transition-all" on:click={showCreateGroupChatDialog}>
+        <button class="fill-gray-button" on:click={showCreateGroupChatDialog}>
             <img src="icons/group-add.svg" alt="create group chat" class="inline-block mr-1" />
             <span class="align-middle">Create group chat</span>
         </button>
         {/if}
+
+        <ListDropdown name="Chat members">
+            {#each currentChat.members as m}
+            <button class="fill-gray-button">
+                <UserAvatar urlPromise={getChatCover(m.username, socket.attachmentHandler)} size={28} />
+                <span class="ml-1 align-middle">{m.username}</span>
+            </button>
+            {/each}
+        </ListDropdown>
+
+        <ListDropdown name="Nicknames">
+            {#each currentChat.members as m}
+            <button class="fill-gray-button" on:click={() => editNickname(m)}>
+                <UserAvatar urlPromise={getChatCover(m.username, socket.attachmentHandler)} size={28} />
+                
+                <span class="ml-1 align-middle">{m.nickname??m.username}</span>
+            </button>
+            {/each}
+        </ListDropdown>
     </div>
     {/if}
 </div>
 
 <CreateGroupChatDialog {createGroupChat} attachmentHandler={socket.attachmentHandler} searchHandler={(val) => socket.search(val, false)} bind:this={createGroupChatDialog} />
 <ChatCoverUploadDialog on:uploadCover={uploadChatCover} on:deleteCover={deleteChatCover} bind:this={chatCoverUploadDialog}/>
-<ChatNameEditDialog originalValue={currentChat?.displayName} on:nameSet={setChatName} bind:this={chatNameEditDialog} />
+<EditTextDialog bind:this={editTextDialog} />

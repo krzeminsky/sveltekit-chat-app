@@ -38,7 +38,7 @@
     {/if}
 
     <div class="w-full">
-        <h1 class="text-gray-500 text-sm mb-0.5 {!left? 'text-right' : ''}">{group.username}</h1>
+        <h1 class="text-gray-500 text-sm mb-0.5 {!left? 'text-right' : ''}">{group.tree.members.find(m => m.username == group.username)?.nickname??group.username}</h1>
 
         <div class="w-full group flex flex-col gap-0.5 {!left? 'items-end' : ''}">
             {#each group.messages as m}

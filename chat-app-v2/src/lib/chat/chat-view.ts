@@ -1,6 +1,6 @@
 import { LinkedList } from "$lib/utils/linked-list";
 import { MessageGroup } from "./message-group";
-import { type ChatData, type Message } from "./types";
+import { type ChatData, type ChatMember, type Message } from "./types";
 
 export interface ChatView {
     get displayName(): string;
@@ -9,13 +9,16 @@ export interface ChatView {
     get private(): boolean;
     get chatCover(): number|null|string;
     get messageGroups(): MessageGroup[];
+    get members(): ChatMember[];
 }
 
 export class TempChat implements ChatView {
+    socketUsername: string;
     name: string;
 
-    constructor(name: string) {
+    constructor(name: string, socketUsername: string) {
         this.name = name;
+        this.socketUsername = socketUsername;
     }
 
     get displayName() { return this.name }
@@ -23,6 +26,12 @@ export class TempChat implements ChatView {
     get private() { return true; }
     get chatCover() { return this.name }
     get messageGroups() { return [] }
+    get members() { 
+        return [
+            { username: this.socketUsername, nickname: null, rank: 0 },
+            { username: this.name, nickname: null, rank: 0 }
+        ]
+    }
 }
 
 // ? last message is at the bottom of the chat window -> has the highest id
@@ -43,6 +52,10 @@ export class ChatTree implements ChatView {
 
     get members() { 
         return this.data.members;
+    }
+
+    get chatMemberNames() {
+        return this.data.members.map(m => m.username);
     }
 
     get otherMember() {
@@ -101,7 +114,7 @@ export class ChatTree implements ChatView {
         const firstGroup = this.messageGroupList.first?.value;
         
         if (firstGroup && firstGroup.isValidGroupMessage(message)) firstGroup.insertMessage(message);
-        else this.messageGroupList.insert(new MessageGroup(message));
+        else this.messageGroupList.insert(new MessageGroup(this, message));
 
         this.count++;
     }
@@ -113,7 +126,7 @@ export class ChatTree implements ChatView {
         if (lastGroup && lastGroup.isValidGroupMessage(message)) {
             lastGroup.pushMessage(message);
         } else {
-            this.messageGroupList.push(new MessageGroup(message));
+            this.messageGroupList.push(new MessageGroup(this, message));
         }
 
         this.count++;
