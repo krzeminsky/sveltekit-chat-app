@@ -19,6 +19,8 @@
     import EditTextDialog from "$lib/components/utils/edit-text-dialog.svelte";
     import ListDropdown from "$lib/components/utils/list-dropdown.svelte";
     import ChatMemberList from "$lib/components/chat/chat-member-list.svelte";
+    import AddChatMemberDialog from "$lib/components/utils/add-chat-member-dialog.svelte";
+    import ConfirmDialog from "$lib/components/utils/confirm-dialog.svelte";
 
     export let data: PageData;
 
@@ -43,19 +45,17 @@
     let createGroupChatDialog: CreateGroupChatDialog;
     let chatCoverUploadDialog: ChatCoverUploadDialog;
     let editTextDialog: EditTextDialog;
+    let addChatMemberDialog: AddChatMemberDialog;
+    let confirmDialog: ConfirmDialog;
 
     let showChatOptions = true;
 
     /*
     TODO:
-    1. Updating chat data (cover, name etc.)
-    2. Creating group chats
-    3. Fixing image lag by adding width and height to the attachment object so there's no need for waiting for the image to load and then resize it
-    
-    4. Deleting messages    | Move message options to separate component and inject it at MessageBox/Attachment level instead at MessageGroup's level
-    5. Reactions            |
-    
-    6. Clean up code (extract whats possible into components and classes)
+    Loading chats on scrolling the left panel
+    REFACTOR
+    message reactions
+    message deletion
     */
 
     const socket = new SocketWrapper(io("http://localhost:3000", { auth: { sessionId: data.session!.sessionId } }), {
@@ -397,6 +397,16 @@
     function removeChatMember(ev: CustomEvent<string>) {
         socket.removeChatMember(currentChat!.id as number, ev.detail);
     }
+
+    function addChatMember(ev: CustomEvent<string>) {
+        console.log('add');
+        socket.addChatMember(currentChat!.id as number, ev.detail);
+    }
+
+    function deleteChat() {
+        if (typeof currentChat!.id !== "number") return;
+        socket.deleteChat(currentChat!.id);
+    }
 </script>
 
 <svelte:window on:focus={() => isTabFocused = true} on:blur={() => isTabFocused = false} />
@@ -473,12 +483,20 @@
             {/if}
         </div>
 
-        <!--TODO: Adding chat members-->
-
         {#if currentChat.private}
         <button class="fill-gray-button" on:click={showCreateGroupChatDialog}>
             <img src="icons/group-add.svg" alt="create group chat" class="inline-block mr-1" />
             <span class="align-middle">Create group chat</span>
+        </button>
+
+        <button class="fill-gray-button" on:click={() => confirmDialog.showDialog('Delete chat?', deleteChat)}>
+            <img src="icons/delete.svg" alt="delete chat" class="inline-block mr-1" />
+            <span class="align-middle">Delete chat</span>
+        </button>
+        {:else}
+        <button class="fill-gray-button" on:click={() => addChatMemberDialog.showDialog()}>
+            <img src="icons/group-add.svg" alt="add chat member" class="inline-block mr-1" />
+            <span class="align-middle">Add chat member</span>
         </button>
         {/if}
 
@@ -504,5 +522,7 @@
 </div>
 
 <CreateGroupChatDialog {createGroupChat} attachmentHandler={socket.attachmentHandler} searchHandler={(val) => socket.search(val, false)} bind:this={createGroupChatDialog} />
-<ChatCoverUploadDialog on:uploadCover={uploadChatCover} on:deleteCover={deleteChatCover} bind:this={chatCoverUploadDialog}/>
+<ChatCoverUploadDialog on:uploadCover={uploadChatCover} on:deleteCover={deleteChatCover} bind:this={chatCoverUploadDialog} />
+<AddChatMemberDialog attachmentHandler={socket.attachmentHandler} searchHandler={(val) => socket.search(val, false)} bind:this={addChatMemberDialog} on:onItemClick={addChatMember} />
 <EditTextDialog bind:this={editTextDialog} />
+<ConfirmDialog bind:this={confirmDialog} />

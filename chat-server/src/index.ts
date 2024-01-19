@@ -60,7 +60,7 @@ io.use(async (socket, next) => {
 io.on('connection', socket => {
     const name = socket.data.name;
 
-    socket.emit('connected', dbCall.getLatestChatMessages(name));
+    socket.emit('connected', dbCall.getLatestChatMessages(name).filter(g => g.messages.length > 0));
 
     socket.on('search', (search: string, includeChats: boolean, callback) => {
         if (typeof search !== "string" || typeof includeChats !== "boolean" || typeof callback !== "function" || search.length <= 0 || search.length > 32) return;
@@ -174,11 +174,12 @@ io.on('connection', socket => {
 
         if (dbCall.isChatPrivate(chatId)) {
             dbCall.updateChatBreakPoint(name, chatId);
+            io.to(name).emit('chatDeleted', chatId);
         } else if (dbCall.getChatMemberRank(name, chatId) == 2) {
             const members = dbCall.getChatMembers(chatId);
             dbCall.deleteChat(chatId);
 
-            broadcastEvent(members, 'groupChatDeleted', chatId);
+            broadcastEvent(members, 'chatDeleted', chatId);
         }
     });
 
@@ -198,7 +199,7 @@ io.on('connection', socket => {
             newOwner = dbCall.transferChatOwnership(chatId);
         }
         
-        const systemMessage = dbCall.insertMessage("", `${members} left the group chat`, chatId, 0);
+        const systemMessage = dbCall.insertMessage("", `${name} left the group chat`, chatId, 0);
 
         broadcastEvent(members, 'chatMemberLeft', chatId, name, newOwner, systemMessage);
     });
@@ -217,7 +218,7 @@ io.on('connection', socket => {
         const systemMessage = dbCall.insertMessage("", `${name} added ${other} to the group chat`, chatId, 0);
 
         // ? chatId, who added, who got added
-        broadcastEvent(dbCall.getChatMembers(chatId), 'chatMemeberAdded', chatId, other, systemMessage);
+        broadcastEvent(dbCall.getChatMembers(chatId), 'chatMemberAdded', chatId, other, systemMessage);
     });
 
     // ? but only admins can remove them

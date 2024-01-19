@@ -26,7 +26,7 @@ function registerSocketEvents(socket: Socket, events: SocketEvents) {
     socket.on('messageReceived', events.messageReceived);
     socket.on('messageDeleted', events.messageDeleted);
     socket.on('chatCreated', events.chatCreated);
-    socket.on('groupChatDeleted', events.groupChatDeleted);
+    socket.on('chatDeleted', events.groupChatDeleted);
     socket.on('chatMemberLeft', events.chatMemberLeft);
     socket.on('chatMemberAdded', events.chatMemberAdded);
     socket.on('chatMemberRemoved', events.chatMemberRemoved);
