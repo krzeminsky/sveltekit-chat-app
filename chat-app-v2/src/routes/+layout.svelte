@@ -1,6 +1,5 @@
 <script lang="ts">
-    import Dialog from "$lib/components/refactored/dialog/dialog.svelte";
-    import { afterUpdate, onMount } from "svelte";
+    import Dialog from "$lib/components/dialog/dialog.svelte";
     import "../app.postcss";
     import { mountedDialog } from "$lib/stores/mountedDialog";
 

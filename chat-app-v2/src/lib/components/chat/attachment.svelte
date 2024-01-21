@@ -1,5 +1,5 @@
 <script lang="ts">
-    import ProgressIndicator from "../utils/progress-indicator.svelte";
+    import ProgressIndicator from "../ui/progress-indicator.svelte";
 
     export let urlPromise: Promise<{ url: string, type: string, name: string }|null>;
 </script>

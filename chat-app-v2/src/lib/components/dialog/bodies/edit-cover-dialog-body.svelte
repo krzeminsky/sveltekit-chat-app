@@ -5,6 +5,7 @@
 
     const dialogFormProps = {
         upload: actionData? {
+            enctype: "multipart/form-data",
             method: "POST",
             action: actionData.uploadPath
         } : {},

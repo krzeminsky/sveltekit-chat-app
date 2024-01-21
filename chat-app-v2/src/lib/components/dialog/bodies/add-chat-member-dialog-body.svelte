@@ -8,6 +8,7 @@
 
     export let attachmentHandler: SocketAttachmentHandler;
     export let searchHandler: (val: string) => Promise<SearchResult>;
+    export let ignoreList: string[];
 
     export let selected: string = '';
 
@@ -20,10 +21,10 @@
 <svelte:options accessors={true} />
 
 <form bind:this={formElement}>
-    <Search {searchHandler} bind:searchResults bind:searchValue>
+    <Search {searchHandler} {ignoreList} bind:searchResults bind:searchValue>
         {#if searchResults}
         <div class="absolute top-[110%] left-0 w-full p-4 bg-white z-20" transition:fade={{duration: 100, easing: cubicInOut }}>
-            <ChatList items={searchResults} {attachmentHandler} on:onItemClick={e => { formElement.submit(); selected = e.detail }} />
+            <ChatList items={searchResults} {attachmentHandler} on:onItemClick={e => { selected = e.detail; formElement.requestSubmit()  }} />
         </div>
         {/if}
     </Search>

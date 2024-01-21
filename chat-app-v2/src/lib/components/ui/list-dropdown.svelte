@@ -1,6 +1,7 @@
 <script lang="ts">
     import { cubicInOut } from "svelte/easing";
     import { scale } from "svelte/transition";
+    import IconTextButton from "./icon-text-button.svelte";
 
     export let name: string;
 
@@ -15,11 +16,8 @@
     }
 </script>
 
-<div class="flex flex-col ">
-    <button class="fill-gray-button" on:click={() => expanded = !expanded}>
-        <span class="align-middle">{name}</span>
-        <img src={expanded? 'icons/expand-less.svg' : 'icons/expand-more.svg'} alt={expanded? 'expand more' : 'expand less'} class="inline-block align-middle"/>
-    </button>
+<div class="flex flex-col ">    
+    <IconTextButton text={name} src={expanded? 'icons/expand-less.svg' : 'icons/expand-more.svg'} alt={expanded? 'expand more' : 'expand less'} reverse={true} on:click={() => expanded = !expanded}/>
 
     {#if expanded}
     <div class="flex flex-col origin-top" transition:scaleY={{}}>

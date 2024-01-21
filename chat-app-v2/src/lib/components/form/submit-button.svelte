@@ -1,5 +1,5 @@
 <script lang="ts">
-    import ProgressIndicator from "../utils/progress-indicator.svelte";
+    import ProgressIndicator from "../ui/progress-indicator.svelte";
 
     export let awaitingResponse = false;
     export let disabled = false;

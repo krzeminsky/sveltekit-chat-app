@@ -14,14 +14,16 @@
     import Search from "$lib/components/utils/search.svelte";
     import EditableChatCover from "$lib/components/utils/editable-chat-cover.svelte";
     import EditableText from "$lib/components/utils/editable-text.svelte";
-    import ListDropdown from "$lib/components/utils/list-dropdown.svelte";
-    import ChatMemberList from "$lib/components/chat/chat-member-list.svelte";
-    import { showEditValueDialog } from "$lib/components/refactored/dialog/controllers/show-edit-value-dialog";
+    import ListDropdown from "$lib/components/ui/list-dropdown.svelte";
+    import { showEditValueDialog } from "$lib/components/dialog/controllers/show-edit-value-dialog";
     import { mountedDialog } from "$lib/stores/mountedDialog";
-    import Dialog from "$lib/components/refactored/dialog/dialog.svelte";
-    import { showCreateGroupChatDialog } from "$lib/components/refactored/dialog/controllers/show-create-group-chat-dialog";
-    import { showConfirmDialog } from "$lib/components/refactored/dialog/controllers/show-confirm-dialog";
-    import { showAddChatMemberDialog } from "$lib/components/refactored/dialog/controllers/show-add-chat-member-dialog";
+    import { showCreateGroupChatDialog } from "$lib/components/dialog/controllers/show-create-group-chat-dialog";
+    import { showConfirmDialog } from "$lib/components/dialog/controllers/show-confirm-dialog";
+    import { showAddChatMemberDialog } from "$lib/components/dialog/controllers/show-add-chat-member-dialog";
+    import IconTextButton from "$lib/components/ui/icon-text-button.svelte";
+    import IconButton from "$lib/components/ui/icon-button.svelte";
+    import IconGradientButton from "$lib/components/ui/icon-gradient-button.svelte";
+    import ChatMemberList from "$lib/components/chat/chat-member-list.svelte";
 
     export let data: PageData;
 
@@ -209,7 +211,7 @@
 
     async function getChat(target: number|string) {        
         if (typeof target === "string") {
-            const chat = chatList.array.find(c => c.otherMember.username == target);
+            const chat = chatList.array.find(c => c.private && c.otherMember.username == target);
             if (chat) return chat;
         } else if (chatTrees.has(target)) return chatTrees.get(target)!;
         
@@ -355,7 +357,7 @@
     }
 
     function addChatMember() {
-        showAddChatMemberDialog(dialog, socket.attachmentHandler, (val: string) => socket.search(val, false), (member: string) => {
+        showAddChatMemberDialog(dialog, socket.attachmentHandler, currentChat!.members.map(m => m.username), (val: string) => socket.search(val, false), (member: string) => {
             socket.addChatMember(currentChat!.id as number, member);
         })
     }
@@ -390,7 +392,7 @@
 <svelte:window on:focus={() => isTabFocused = true} on:blur={() => isTabFocused = false} />
 
 <div class="absolute w-full h-full flex">
-    <div id="chat-list" class="relative w-96 mt-14 flex flex-col shadow-lg overflow-y-auto p-4">
+    <div id="chat-list" class="relative flex-shrink-0 w-96 mt-14 flex flex-col shadow-lg overflow-y-auto p-4">
         <div class="w-full">
             <Search label="Chats" searchHandler={(val) => socket.search(val, true)} bind:searchValue={chatSearchValue} bind:searchResults={chatSearchResults} />
         </div>
@@ -410,7 +412,7 @@
         </div>
     </div>
 
-    <div class="relative flex-1 mt-14 flex flex-col p-4">
+    <div class="relative flex-grow mt-14 flex flex-col p-4">
         {#if currentChat}
         <div class="w-full h-16 flex items-center justify-between">
             <div class="flex items-center gap-2">
@@ -418,14 +420,10 @@
                 <h1 class="text-xl">{currentChat.displayName}</h1>
             </div>
 
-            <div class="flex gap-2">
-                <button class="bg-none hover:bg-gray-100 active:bg-gray-200 transition-all rounded-full" on:click={() => showChatOptions = !showChatOptions}>
-                    <img src="icons/more.svg" alt="switch chat options visibility" class="p-2" />
-                </button>
-            </div>
+            <IconButton src="icons/more.svg" alt="Switch chat options visibility" on:click={() => showChatOptions = !showChatOptions} />
         </div>
 
-        <div class="flex-1 flex flex-col-reverse gap-2 overflow-y-auto pr-1 overscroll-y-none" role="feed" bind:this={chatWindow} on:scroll={onChatScroll} on:dragover|preventDefault on:drop={onDrop}>            
+        <div class="min-w-0 flex-grow flex flex-col-reverse gap-2 overflow-y-auto pr-1 overscroll-y-none" role="feed" bind:this={chatWindow} on:scroll={onChatScroll} on:dragover|preventDefault on:drop={onDrop}>            
             {#each currentChat.messageGroups as group (group.id)}
             <MessageGroup {group} attachmentHandler={socket.attachmentHandler} {socketUsername} on:deleteMessage />
             {/each}
@@ -439,9 +437,7 @@
                     if (e.key == "Enter") sendMessage();
                 }} />
     
-                <button class="p-2 main-gradient rounded-full" on:click={sendMessage}>
-                    <img src="icons/send.svg" alt="send" />
-                </button>
+                <IconGradientButton src="icons/send.svg" alt="Send message" on:click={sendMessage} />
             </div>
         </div>
         {:else}
@@ -463,37 +459,26 @@
         </div>
 
         {#if currentChat.private}
-        <button class="fill-gray-button" on:click={createGroupChat}>
-            <img src="icons/group-add.svg" alt="create group chat" class="inline-block mr-1" />
-            <span class="align-middle">Create group chat</span>
-        </button>
-
-        <button class="fill-gray-button" on:click={deleteChat}>
-            <img src="icons/delete.svg" alt="delete chat" class="inline-block mr-1" />
-            <span class="align-middle">Delete chat</span>
-        </button>
+        <IconTextButton text="Create group chat" src="icons/group-add.svg" on:click={createGroupChat} />
+        <IconTextButton text="Delete chat" src="icons/delete.svg" on:click={deleteChat} />
         {:else}
-        <button class="fill-gray-button" on:click={addChatMember}>
-            <img src="icons/group-add.svg" alt="add chat member" class="inline-block mr-1" />
-            <span class="align-middle">Add chat member</span>
-        </button>
+        <IconTextButton text="Add chat member" src="icons/group-add.svg" on:click={addChatMember} />
         {/if}
 
-        <ChatMemberList chat={currentChat} attachmentHandler={socket.attachmentHandler} {socketUsername} 
-            on:blockMember
-            on:changeRank={e => changeChatMemberRank(e.detail)}
-            on:leaveChat={leaveGroupChat}
-            on:message={openChat}
-            on:removeMember={e => removeChatMember(e.detail)}
-        />
+        <ListDropdown name="Chat members">
+            <ChatMemberList attachmentHandler={socket.attachmentHandler} chat={currentChat} {socketUsername}
+                on:changeRank={e => changeChatMemberRank(e.detail)}
+                on:removeMember={e => removeChatMember(e.detail)}
+                on:leaveChat={leaveGroupChat}
+                on:message={openChat}
+            />
+        </ListDropdown>
 
         <ListDropdown name="Nicknames">
-            {#each currentChat.members as m}
-            <button class="fill-gray-button" on:click={() => editNickname(m)}>
+            {#each currentChat.members as m (m.username)}
+            <IconTextButton text={m.nickname??m.username} on:click={() => editNickname(m)}>
                 <UserAvatar urlPromise={getChatCover(m.username, socket.attachmentHandler)} size={28} />
-                
-                <span class="ml-1 align-middle">{m.nickname??m.username}</span>
-            </button>
+            </IconTextButton>
             {/each}
         </ListDropdown>
     </div>
