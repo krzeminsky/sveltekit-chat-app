@@ -1,6 +1,6 @@
 <script lang="ts">
     import { SocketWrapper } from "$lib/chat/socket-wrapper";
-    import { afterUpdate, onDestroy } from "svelte";
+    import { afterUpdate, onDestroy, onMount } from "svelte";
     import type { PageData } from "../$types";
     import { io } from "socket.io-client";
     import { ChatTree, TempChat, type ChatView } from "$lib/chat/chat-view";
@@ -12,15 +12,18 @@
     import MessageGroup from "$lib/components/chat/message-group.svelte";
     import AttachmentList from "$lib/components/chat/attachment-list.svelte";
     import Search from "$lib/components/utils/search.svelte";
-    import CreateGroupChatDialog from "$lib/components/utils/create-group-chat-dialog.svelte";
     import EditableChatCover from "$lib/components/utils/editable-chat-cover.svelte";
     import EditableText from "$lib/components/utils/editable-text.svelte";
-    import ChatCoverUploadDialog from "$lib/components/utils/chat-cover-upload-dialog.svelte";
-    import EditTextDialog from "$lib/components/utils/edit-text-dialog.svelte";
-    import ListDropdown from "$lib/components/utils/list-dropdown.svelte";
+    import ListDropdown from "$lib/components/ui/list-dropdown.svelte";
+    import { showEditValueDialog } from "$lib/components/dialog/controllers/show-edit-value-dialog";
+    import { mountedDialog } from "$lib/stores/mountedDialog";
+    import { showCreateGroupChatDialog } from "$lib/components/dialog/controllers/show-create-group-chat-dialog";
+    import { showConfirmDialog } from "$lib/components/dialog/controllers/show-confirm-dialog";
+    import { showAddChatMemberDialog } from "$lib/components/dialog/controllers/show-add-chat-member-dialog";
+    import IconTextButton from "$lib/components/ui/icon-text-button.svelte";
+    import IconButton from "$lib/components/ui/icon-button.svelte";
+    import IconGradientButton from "$lib/components/ui/icon-gradient-button.svelte";
     import ChatMemberList from "$lib/components/chat/chat-member-list.svelte";
-    import AddChatMemberDialog from "$lib/components/utils/add-chat-member-dialog.svelte";
-    import ConfirmDialog from "$lib/components/utils/confirm-dialog.svelte";
 
     export let data: PageData;
 
@@ -42,13 +45,9 @@
     let chatSearchValue: string;
     let chatSearchResults: SearchResult;
 
-    let createGroupChatDialog: CreateGroupChatDialog;
-    let chatCoverUploadDialog: ChatCoverUploadDialog;
-    let editTextDialog: EditTextDialog;
-    let addChatMemberDialog: AddChatMemberDialog;
-    let confirmDialog: ConfirmDialog;
-
     let showChatOptions = true;
+
+    $: dialog = $mountedDialog;
 
     /*
     TODO:
@@ -195,6 +194,10 @@
         },
     });
 
+    onMount(() => {
+        dialog = $mountedDialog;
+    })
+
     onDestroy(() => {
         socket.dispose();
     });
@@ -208,7 +211,7 @@
 
     async function getChat(target: number|string) {        
         if (typeof target === "string") {
-            const chat = chatList.array.find(c => c.otherMember.username == target);
+            const chat = chatList.array.find(c => c.private && c.otherMember.username == target);
             if (chat) return chat;
         } else if (chatTrees.has(target)) return chatTrees.get(target)!;
         
@@ -323,96 +326,73 @@
         }
     }
 
-    function showCreateGroupChatDialog() {
-        if (!currentChat) return;
-        
-        createGroupChatDialog.showDialog(currentChat);
-    }
-
-    function createGroupChat(members: string[]) {
-        socket.createChat(members);
-    }
-
     function editChatName() {
-        editTextDialog.showDialog(currentChat!.chatName??'', "Edit chat name", "Chat name", setChatName);
+        showEditValueDialog(dialog, "Edit chat name", currentChat!.displayName, "Chat name", v => {
+            socket.setChatName(currentChat!.id as number, v); // ? you can only edit group chat's name, which always has it's id type as number
+        });
     }
 
     function editNickname(member: ChatMember) {
-        editTextDialog.showDialog(member.nickname??'', "Edit nickname", member.username, v => setChatNickname(member.username, v));
+        showEditValueDialog(dialog, "Edit nickname", member.nickname??'', member.username, async (v) => {
+            const chat = await ensureCurrentChatExists();
+            if (!chat) return;
+
+            socket.setChatNickname(chat.id, member.username, v);
+        })
     }
 
-    // ? cant set private chat's cover, so there's no need to check if the chat exists
-    function uploadChatCover(ev: CustomEvent<File|null>) {        
-        if (!ev.detail) return;
-        if (currentChat && typeof currentChat.id === "number") socket.setChatCover(currentChat.id, { buffer: ev.detail as unknown as Buffer, name: ev.detail.name, type: ev.detail.type })
-    }
+    function createGroupChat() {
+        const lockedMember = currentChat instanceof ChatTree? currentChat.otherMember.username : currentChat!.id as string;
 
-    function deleteChatCover() {
-        if (currentChat && typeof currentChat.id === "number") socket.setChatCover(currentChat.id, null);
-    }
-
-    // ? refactor angle
-    async function setChatName(val: string) {
-        if (currentChat) {
-            if (typeof currentChat.id === "number") socket.setChatName(currentChat.id, val);
-            else {
-                await socket.createChat([currentChat.displayName]);
-                const chat = (await getChat(currentChat.id))!;
-                
-                chatTrees.set(chat.id, chat);
-                chatList.insertOrPushToFront(chat);
-
-                socket.setChatName(chat.id, val);
-
-                chatList = chatList;
-            }
-        }
-    }
-
-    // ? refactor angle
-    async function setChatNickname(member: string, nickname: string) {
-        if (currentChat) {
-            if (typeof currentChat.id === "number") socket.setChatNickname(currentChat.id, member, nickname);
-            else {
-                await socket.createChat([currentChat.displayName]);
-                const chat = (await getChat(currentChat.id))!;
-                
-                chatTrees.set(chat.id, chat);
-                chatList.insertOrPushToFront(chat);
-
-                socket.setChatNickname(chat.id, member, nickname);
-                chatList = chatList;
-            }
-        }
-    }
-
-    function changeChatMemberRank(ev: CustomEvent<string>) {
-        socket.changeChatMemberRank(currentChat!.id as number, ev.detail);
-    }
-
-    function leaveGroupChat() {
-        socket.leaveGroupChat(currentChat!.id as number);
-    }
-
-    function removeChatMember(ev: CustomEvent<string>) {
-        socket.removeChatMember(currentChat!.id as number, ev.detail);
-    }
-
-    function addChatMember(ev: CustomEvent<string>) {
-        console.log('add');
-        socket.addChatMember(currentChat!.id as number, ev.detail);
+        showCreateGroupChatDialog(dialog, socket.attachmentHandler, (val: string) => socket.search(val, false), lockedMember, (members: string[]) => {
+            socket.createChat(members);
+        });
     }
 
     function deleteChat() {
-        if (typeof currentChat!.id !== "number") return;
-        socket.deleteChat(currentChat!.id);
+        if (typeof currentChat!.id === "string") currentChat = null;
+        else {
+            showConfirmDialog(dialog, "Delete chat?", () => socket.deleteChat(currentChat!.id as number));
+        }
+    }
+
+    function addChatMember() {
+        showAddChatMemberDialog(dialog, socket.attachmentHandler, currentChat!.members.map(m => m.username), (val: string) => socket.search(val, false), (member: string) => {
+            socket.addChatMember(currentChat!.id as number, member);
+        })
+    }
+
+    function removeChatMember(member: string) {
+        showConfirmDialog(dialog, "Remove member?", () => socket.removeChatMember(currentChat!.id as number, member));
+    }
+
+    function leaveGroupChat() {
+        showConfirmDialog(dialog, "Leave group chat?", () => socket.leaveGroupChat(currentChat!.id as number));
+    }
+
+    function changeChatMemberRank(member: string) {
+        socket.changeChatMemberRank(currentChat!.id as number, member);
+    }
+
+    async function ensureCurrentChatExists() {
+        if (!currentChat) return null;
+        
+        if (typeof currentChat.id === "number") return currentChat as ChatTree;
+        else {
+            const chat = await getChat(currentChat.id);
+            if (!chat) return null;
+
+            chatList.insertOrPushToFront(chat);
+
+            return chat;
+        }
     }
 </script>
 
 <svelte:window on:focus={() => isTabFocused = true} on:blur={() => isTabFocused = false} />
 
 <div class="absolute w-full h-full flex">
-    <div id="chat-list" class="relative w-96 mt-14 flex flex-col shadow-lg overflow-y-auto p-4">
+    <div id="chat-list" class="relative flex-shrink-0 w-96 mt-14 flex flex-col shadow-lg overflow-y-auto p-4">
         <div class="w-full">
             <Search label="Chats" searchHandler={(val) => socket.search(val, true)} bind:searchValue={chatSearchValue} bind:searchResults={chatSearchResults} />
         </div>
@@ -432,7 +412,7 @@
         </div>
     </div>
 
-    <div class="relative flex-1 mt-14 flex flex-col p-4">
+    <div class="relative flex-grow mt-14 flex flex-col p-4">
         {#if currentChat}
         <div class="w-full h-16 flex items-center justify-between">
             <div class="flex items-center gap-2">
@@ -440,14 +420,10 @@
                 <h1 class="text-xl">{currentChat.displayName}</h1>
             </div>
 
-            <div class="flex gap-2">
-                <button class="bg-none hover:bg-gray-100 active:bg-gray-200 transition-all rounded-full" on:click={() => showChatOptions = !showChatOptions}>
-                    <img src="icons/more.svg" alt="switch chat options visibility" class="p-2" />
-                </button>
-            </div>
+            <IconButton src="icons/more.svg" alt="Switch chat options visibility" on:click={() => showChatOptions = !showChatOptions} />
         </div>
 
-        <div class="flex-1 flex flex-col-reverse gap-2 overflow-y-auto pr-1 overscroll-y-none" role="feed" bind:this={chatWindow} on:scroll={onChatScroll} on:dragover|preventDefault on:drop={onDrop}>            
+        <div class="min-w-0 flex-grow flex flex-col-reverse gap-2 overflow-y-auto pr-1 overscroll-y-none" role="feed" bind:this={chatWindow} on:scroll={onChatScroll} on:dragover|preventDefault on:drop={onDrop}>            
             {#each currentChat.messageGroups as group (group.id)}
             <MessageGroup {group} attachmentHandler={socket.attachmentHandler} {socketUsername} on:deleteMessage />
             {/each}
@@ -461,9 +437,7 @@
                     if (e.key == "Enter") sendMessage();
                 }} />
     
-                <button class="p-2 main-gradient rounded-full" on:click={sendMessage}>
-                    <img src="icons/send.svg" alt="send" />
-                </button>
+                <IconGradientButton src="icons/send.svg" alt="Send message" on:click={sendMessage} />
             </div>
         </div>
         {:else}
@@ -473,56 +447,40 @@
 
     {#if showChatOptions && currentChat}
     <div class="w-80 mt-24 p-4 shadow-lg flex flex-col gap-2">
-        <div class="flex flex-col items-center gap-2 w-full p-4">
+        <div class="flex flex-col items-center gap-2 w-full p-4">            
             {#if currentChat.private}
             <UserAvatar size={80} urlPromise={getChatCover(currentChat.chatCover, socket.attachmentHandler)} />
             <h1 class="hide-text-overflow">{currentChat.displayName}</h1>
             {:else}
-            <EditableChatCover size={80} urlPromise={getChatCover(currentChat.chatCover, socket.attachmentHandler)} on:click={chatCoverUploadDialog.showDialog} />
+            <EditableChatCover size={80} urlPromise={getChatCover(currentChat.chatCover, socket.attachmentHandler)} on:click={() => {}} />
+            
             <EditableText value={currentChat.displayName} on:click={editChatName} />
             {/if}
         </div>
 
         {#if currentChat.private}
-        <button class="fill-gray-button" on:click={showCreateGroupChatDialog}>
-            <img src="icons/group-add.svg" alt="create group chat" class="inline-block mr-1" />
-            <span class="align-middle">Create group chat</span>
-        </button>
-
-        <button class="fill-gray-button" on:click={() => confirmDialog.showDialog('Delete chat?', deleteChat)}>
-            <img src="icons/delete.svg" alt="delete chat" class="inline-block mr-1" />
-            <span class="align-middle">Delete chat</span>
-        </button>
+        <IconTextButton text="Create group chat" src="icons/group-add.svg" on:click={createGroupChat} />
+        <IconTextButton text="Delete chat" src="icons/delete.svg" on:click={deleteChat} />
         {:else}
-        <button class="fill-gray-button" on:click={() => addChatMemberDialog.showDialog()}>
-            <img src="icons/group-add.svg" alt="add chat member" class="inline-block mr-1" />
-            <span class="align-middle">Add chat member</span>
-        </button>
+        <IconTextButton text="Add chat member" src="icons/group-add.svg" on:click={addChatMember} />
         {/if}
 
-        <ChatMemberList chat={currentChat} attachmentHandler={socket.attachmentHandler} {socketUsername} 
-            on:blockMember
-            on:changeRank={changeChatMemberRank}
-            on:leaveChat={leaveGroupChat}
-            on:message={openChat}
-            on:removeMember={removeChatMember}
-        />
+        <ListDropdown name="Chat members">
+            <ChatMemberList attachmentHandler={socket.attachmentHandler} chat={currentChat} {socketUsername}
+                on:changeRank={e => changeChatMemberRank(e.detail)}
+                on:removeMember={e => removeChatMember(e.detail)}
+                on:leaveChat={leaveGroupChat}
+                on:message={openChat}
+            />
+        </ListDropdown>
 
         <ListDropdown name="Nicknames">
-            {#each currentChat.members as m}
-            <button class="fill-gray-button" on:click={() => editNickname(m)}>
+            {#each currentChat.members as m (m.username)}
+            <IconTextButton text={m.nickname??m.username} on:click={() => editNickname(m)}>
                 <UserAvatar urlPromise={getChatCover(m.username, socket.attachmentHandler)} size={28} />
-                
-                <span class="ml-1 align-middle">{m.nickname??m.username}</span>
-            </button>
+            </IconTextButton>
             {/each}
         </ListDropdown>
     </div>
     {/if}
 </div>
-
-<CreateGroupChatDialog {createGroupChat} attachmentHandler={socket.attachmentHandler} searchHandler={(val) => socket.search(val, false)} bind:this={createGroupChatDialog} />
-<ChatCoverUploadDialog on:uploadCover={uploadChatCover} on:deleteCover={deleteChatCover} bind:this={chatCoverUploadDialog} />
-<AddChatMemberDialog attachmentHandler={socket.attachmentHandler} searchHandler={(val) => socket.search(val, false)} bind:this={addChatMemberDialog} on:onItemClick={addChatMember} />
-<EditTextDialog bind:this={editTextDialog} />
-<ConfirmDialog bind:this={confirmDialog} />

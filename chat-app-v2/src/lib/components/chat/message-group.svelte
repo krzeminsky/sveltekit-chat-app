@@ -5,9 +5,6 @@
     import UserAvatar from "../user-avatar.svelte";
     import Attachment from "./attachment.svelte";
     import MessageBox from "./message-box.svelte";
-    import ReactionButton from "./reaction-button.svelte";
-    import { getUsersReaction } from "$lib/chat/reactions";
-    import ConfirmDialog from "../utils/confirm-dialog.svelte";
 
     export let group: MessageGroup;
     export let attachmentHandler: SocketAttachmentHandler;
@@ -17,15 +14,6 @@
     const dispatch = createEventDispatcher();
 
     let reactionDialogOpen = false;
-    let deleteMessageDialog: ConfirmDialog;
-
-    function deleteMessage(id: number) {
-        dispatch('deleteMessage', id);
-    }
-
-    function setActiveReactionDialog(e: any) {
-        reactionDialogOpen = e as boolean;
-    }
 </script>
 
 <div class="flex gap-2">
@@ -50,18 +38,6 @@
                 {:else}
                 <MessageBox {left} content={m.content} reactions={m.reactions} />
                 {/if}
-
-                <!--
-                <div class="hidden gap-1 {reactionDialogOpen? 'flex' : 'group-hover:flex'}">
-                    <ReactionButton selectedReaction={getUsersReaction(socketUsername, m.reactions)} on:stateChanged={setActiveReactionDialog} on:addReaction />
-
-                    {#if !left}
-                    <button on:click={() => deleteMessageDialog.showDialog(() => deleteMessage(m.id))}>
-                        <img src="icons/delete.svg" alt="delete message" />
-                    </button>
-                    {/if}
-                </div>
-                -->
             {/each}
         </div>
     </div>

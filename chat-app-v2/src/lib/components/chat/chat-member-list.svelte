@@ -1,65 +1,73 @@
 <script lang="ts">
-    import type { ChatView } from "$lib/chat/chat-view";
     import type { SocketAttachmentHandler } from "$lib/chat/socket-attachment-handler";
-    import type { Chat, ChatData, ChatMember } from "$lib/chat/types";
+    import type { ChatMember } from "$lib/chat/types";
+    import IconTextButton from "../ui/icon-text-button.svelte";
     import { getChatCover } from "$lib/utils/get-chat-cover";
+    import UserAvatar from "$lib/components/user-avatar.svelte";
     import { fade } from "svelte/transition";
-    import UserAvatar from "../user-avatar.svelte";
-    import ListDropdown from "../utils/list-dropdown.svelte";
     import { cubicInOut } from "svelte/easing";
+    import type { ChatView } from "$lib/chat/chat-view";
     import { createEventDispatcher } from "svelte";
 
-    export let chat: ChatView;
     export let attachmentHandler: SocketAttachmentHandler;
     export let socketUsername: string;
+    export let chat: ChatView;
 
     const dispatch = createEventDispatcher();
 
-    $: socketAsMember = chat.members.find(m => m.username == socketUsername)!;
+    let socketAsMember: ChatMember;
+    let selectedMember: ChatMember|null = null;
 
-    let activeMenu = -1;
+    $: if (chat) {
+        socketAsMember = chat.members.find(m => m.username == socketUsername)!;
+        selectedMember = null;
+    }
 
-    function closeOnOutsideClick(e: Event) {
-        if (e.target instanceof HTMLElement && e.target.parentNode instanceof HTMLElement && !e.target.parentNode.hasAttribute('data-block')) activeMenu = -1;
+    function leaveChat() { sendEvent('leaveChat') }
+    function message() { sendEvent('message') }
+    function changeRank() { sendEvent('changeRank') }
+    function removeMember() { sendEvent('removeMember') }
+
+    function sendEvent(ev: string) {
+        dispatch(ev, selectedMember!.username);
+        selectedMember = null;
     }
 </script>
 
-<svelte:window on:mousedown={closeOnOutsideClick}/>
+<svelte:window on:click={() => selectedMember = null}/>
 
-<ListDropdown name="Chat members">
-    {#each chat.members as m, i}
-    <div class="relative">
-        <button class="fill-gray-button" on:click={() => activeMenu = i}>
-            <UserAvatar urlPromise={getChatCover(m.username, attachmentHandler)} size={28} />
-            <span class="ml-1 align-middle">{m.username}</span>
-        </button>
+{#each chat.members as m (m.username)}
+<!-- svelte-ignore a11y-click-events-have-key-events -->
+<!-- svelte-ignore a11y-no-static-element-interactions -->
+<div class="relative" on:click|stopPropagation>
+    <IconTextButton text={m.username} on:click={() => {
+        if (selectedMember !== m) selectedMember = m
+        else selectedMember = null
+    }}>
+        <UserAvatar urlPromise={getChatCover(m.username, attachmentHandler)} size={28} />
+    </IconTextButton>
 
-        {#if activeMenu == i}
-        <div class="absolute top-0 right-full flex flex-col gap-2 p-2 bg-white shadow-lg rounded-lg" data-block transition:fade={{duration: 100, easing: cubicInOut}}>
-            {#if m == socketAsMember}
-                {#if !chat.private}
-                <button class="fill-gray-button" on:click={() => dispatch('leaveChat')}>Leave chat</button>
-                {/if}
-            {:else}
-            
+    {#if selectedMember === m}
+    <div id="member-actions" class="absolute top-0 right-full flex flex-col gap-2 p-2 bg-white shadow-lg rounded-lg" transition:fade={{duration: 100, easing: cubicInOut}}>
+        {#if m.username == socketUsername}
             {#if !chat.private}
-            <button class="fill-gray-button" on:click={() => dispatch('message', m.username)}>Message</button>
+            <IconTextButton text="Leave chat" src="icons/leave.svg" on:click={leaveChat} />
             {/if}
+        {:else}
+        
+        {#if !chat.private}
+        <IconTextButton text="Message" src="icons/message.svg" on:click={message}/>
+        {/if}
 
-            {#if socketAsMember.rank > m.rank}
-            <button class="fill-gray-button" on:click={() => dispatch('changeRank', m.username)}>{m.rank == 1? 'Remove admin' : 'Add admin'}</button>
-            {/if}
+        {#if socketAsMember.rank > m.rank}
+        <IconTextButton text={m.rank == 1? 'Demote' : 'Promote to admin'} src="icons/build.svg" on:click={changeRank}/>
+        <IconTextButton text="Remove member" src="icons/delete.svg" on:click={removeMember} />
+        {/if}
 
-            {#if m.rank < socketAsMember.rank}
-            <button class="fill-gray-button" on:click={() => dispatch('removeMember', m.username)}>Remove member</button>
-            {/if}
+        <IconTextButton text="Block" src="icons/block.svg" on:click />
 
-            <button class="fill-gray-button" on:click={() => dispatch('blockMember', m.username)}>Block</button>
-
-            {/if}
-
-        </div>
         {/if}
     </div>
-    {/each}
-</ListDropdown>
+    {/if}
+</div>
+{/each}

@@ -4,6 +4,8 @@
     export let searchHandler: (val: string) => Promise<SearchResult>;
     export let label = '';
 
+    export let ignoreList: string[] = [];
+    
     export let searchValue = '';
     export let searchResults: SearchResult|undefined;
     
@@ -18,7 +20,13 @@
 
     async function search() {
         const results = await searchHandler(searchValue);
-        if (searchValue) searchResults = results;
+        if (searchValue) {
+            results.users = results.users.filter(u => !ignoreList.includes(u));
+
+            if (results.users.length == 0) return;
+
+            searchResults = results;
+        }
     }
 </script>
 
