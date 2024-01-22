@@ -2,21 +2,34 @@
     export let urlPromise: Promise<string|null>;
     export let size: number;
     
-    let fixedSize: number|undefined;
-    let img: HTMLImageElement;
+    let container: HTMLElement;
+    $: if (container) constructImage(urlPromise);
 
-    $: {
-        fixedSize = undefined;
-        
-        if (img) {
-            fixedSize = size * Math.max(1, img.height / img.width);
-            img.height = fixedSize;
+    // total: hours spent here: about 4
+    // there has to be a 'svelte' way to do this, but I'm too tired
+    async function constructImage(url: Promise<string|null>) {    
+        const img = new Image();
+        const resUrl = await url;
+
+        if (!resUrl) {
+            img.src = 'default-user-avatar.png';
+            img.style.height = `${size}px`;
+        } else {
+            img.src = resUrl;
+            
+            await new Promise<void>(resolve => {
+                img.onload = () => {
+                    const fixedSize = size * Math.max(1, img.height / img.width);
+                    img.style.height = `${fixedSize}px`
+
+                    resolve();
+                }
+            });
         }
+
+        container.replaceChildren(img);
     }
+    
 </script>
 
-<div class="relative flex-shrink-0 inline-block align-middle aspect-square pointer-events-none rounded-full overflow-hidden" style="height: {size}px">
-    {#await urlPromise then url}
-    <img src="{url??'default-user-avatar.png'}" alt="avatar" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" style="height: {fixedSize}px;" bind:this={img} />
-    {/await}
-</div>
+<div class="relative flex-shrink-0 align-middle aspect-square pointer-events-none rounded-full overflow-hidden flex justify-center items-center" style="height: {size}px" bind:this={container} />

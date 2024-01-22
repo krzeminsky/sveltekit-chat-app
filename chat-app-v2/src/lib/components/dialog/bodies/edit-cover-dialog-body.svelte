@@ -16,7 +16,7 @@
         } : {}
     }
 
-    export let files: FileList|null;
+    export let files: FileList|null = null;
 
     let uploadForm: HTMLFormElement;
 

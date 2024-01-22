@@ -24,6 +24,7 @@
     import IconButton from "$lib/components/ui/icon-button.svelte";
     import IconGradientButton from "$lib/components/ui/icon-gradient-button.svelte";
     import ChatMemberList from "$lib/components/chat/chat-member-list.svelte";
+    import { showEditCoverDialog } from "$lib/components/dialog/controllers/show-edit-cover-dialog";
 
     export let data: PageData;
 
@@ -327,8 +328,15 @@
     }
 
     function editChatName() {
-        showEditValueDialog(dialog, "Edit chat name", currentChat!.displayName, "Chat name", v => {
+        showEditValueDialog(dialog, "Edit chat name", currentChat!.chatName??'', "Chat name", v => {
             socket.setChatName(currentChat!.id as number, v); // ? you can only edit group chat's name, which always has it's id type as number
+        });
+    }
+
+    function editChatCover() {
+        showEditCoverDialog(dialog, "Edit chat cover", async f => {
+            const file = f?.item(0);
+            socket.setChatCover(currentChat!.id as number, file? { buffer: file as unknown as Buffer, name: file.name, type: file.type } : null)
         });
     }
 
@@ -452,7 +460,7 @@
             <UserAvatar size={80} urlPromise={getChatCover(currentChat.chatCover, socket.attachmentHandler)} />
             <h1 class="hide-text-overflow">{currentChat.displayName}</h1>
             {:else}
-            <EditableChatCover size={80} urlPromise={getChatCover(currentChat.chatCover, socket.attachmentHandler)} on:click={() => {}} />
+            <EditableChatCover size={80} urlPromise={getChatCover(currentChat.chatCover, socket.attachmentHandler)} on:click={editChatCover} />
             
             <EditableText value={currentChat.displayName} on:click={editChatName} />
             {/if}
