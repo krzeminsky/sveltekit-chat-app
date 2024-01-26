@@ -2,7 +2,7 @@
     import type { SocketAttachmentHandler } from "$lib/chat/socket-attachment-handler";
     import type { SearchResult } from "$lib/chat/types";
     import ChatList from "$lib/components/chat/chat-list.svelte";
-    import UserAvatar from "$lib/components/user-avatar.svelte";
+    import Cover from "$lib/components/cover.svelte";
     import Search from "$lib/components/utils/search.svelte";
     import { cubicInOut } from "svelte/easing";
     import { fade } from "svelte/transition";
@@ -47,13 +47,13 @@
     
     <div class="w-full flex gap-2 overflow-x-auto" bind:this={scrollContainer} on:wheel={onScroll}>
         <button disabled class="user-button opacity-50">
-            <UserAvatar size={24} urlPromise={attachmentHandler.getUserAvatar(chatMembers[0])} />
+            <Cover size={24} urlPromise={attachmentHandler.getUserAvatar(chatMembers[0])} />
             {chatMembers[0]}
         </button>
 
         {#each chatMembers.slice(1) as m}
         <button class="user-button">
-            <UserAvatar size={24} urlPromise={attachmentHandler.getUserAvatar(m)} />
+            <Cover size={24} urlPromise={attachmentHandler.getUserAvatar(m)} />
             {m}
             <img src="icons/delete.svg" alt="delete user from group chat" />
         </button>

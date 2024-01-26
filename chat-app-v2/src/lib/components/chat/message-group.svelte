@@ -2,7 +2,7 @@
     import type { SocketAttachmentHandler } from "$lib/chat/socket-attachment-handler";
     import type { MessageGroup } from "$lib/chat/message-group";
     import { createEventDispatcher, onMount } from "svelte";
-    import UserAvatar from "../user-avatar.svelte";
+    import Cover from "../cover.svelte";
     import Attachment from "./attachment.svelte";
     import MessageBox from "./message-box.svelte";
 
@@ -20,7 +20,7 @@
     {#if left}
     <div class="relative h-full w-8">
         <div class="absolute bottom-1 left-1/2 -translate-x-1/2">
-            <UserAvatar size={32} urlPromise={attachmentHandler.getUserAvatar(group.username)}/>
+            <Cover size={32} urlPromise={attachmentHandler.getUserAvatar(group.username)}/>
         </div>
     </div>
     {/if}

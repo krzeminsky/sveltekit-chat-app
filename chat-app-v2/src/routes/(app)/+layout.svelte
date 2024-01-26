@@ -2,7 +2,7 @@
     import { fade } from "svelte/transition";
     import type { LayoutData } from "./$types";
     import { sineInOut } from "svelte/easing";
-    import UserAvatar from "$lib/components/user-avatar.svelte";
+    import Cover from "$lib/components/cover.svelte";
     import { fetchUserAvatar } from "$lib/utils/fetch-user-avatar";
     import AccountActions from "$lib/components/account-actions.svelte";
     import { onMount } from "svelte";
@@ -34,7 +34,7 @@
             <div class="relative">
                 <button class="account-actions" on:click={() => showAccountActions = !showAccountActions}>
                     {#if mounted}
-                    <UserAvatar urlPromise={fetchUserAvatar(data.avatar)} size={32}/>
+                    <Cover urlPromise={fetchUserAvatar(data.avatar)} size={32}/>
                     {:else}
                     <div class="aspect-square h-8"/>
                     {/if}

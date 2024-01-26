@@ -3,7 +3,7 @@
     import type { ChatMember } from "$lib/chat/types";
     import IconTextButton from "../ui/icon-text-button.svelte";
     import { getChatCover } from "$lib/utils/get-chat-cover";
-    import UserAvatar from "$lib/components/user-avatar.svelte";
+    import Cover from "$lib/components/cover.svelte";
     import { fade } from "svelte/transition";
     import { cubicInOut } from "svelte/easing";
     import type { ChatView } from "$lib/chat/chat-view";
@@ -44,7 +44,7 @@
         if (selectedMember !== m) selectedMember = m
         else selectedMember = null
     }}>
-        <UserAvatar urlPromise={getChatCover(m.username, attachmentHandler)} size={28} />
+        <Cover urlPromise={getChatCover(m.username, attachmentHandler)} size={28} />
     </IconTextButton>
 
     {#if selectedMember === m}

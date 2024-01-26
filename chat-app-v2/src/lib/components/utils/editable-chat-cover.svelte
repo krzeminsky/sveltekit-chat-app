@@ -1,5 +1,5 @@
 <script lang="ts">
-    import UserAvatar from "$lib/components/user-avatar.svelte";
+    import Cover from "$lib/components/cover.svelte";
     import { onMount } from "svelte";
 
     export let urlPromise: Promise<string|null>;
@@ -11,7 +11,7 @@
 
 <button class="group relative rounded-full overflow-hidden aspect-square" style="height: {size}px;" on:click>
     {#if mounted}
-    <UserAvatar {urlPromise} {size} />
+    <Cover {urlPromise} {size} />
     {:else}
     <div class="aspect-square" style="height: {size}px"/>
     {/if}

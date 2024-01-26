@@ -7,7 +7,7 @@
     import type { ChatMember, SearchResult } from "$lib/chat/types";
     import ChatList from "$lib/components/chat/chat-list.svelte";
     import { ChatListWrapper } from "$lib/chat/chat-list-wrapper";
-    import UserAvatar from "$lib/components/user-avatar.svelte";
+    import Cover from "$lib/components/cover.svelte";
     import { getChatCover } from "$lib/utils/get-chat-cover";
     import MessageGroup from "$lib/components/chat/message-group.svelte";
     import AttachmentList from "$lib/components/chat/attachment-list.svelte";
@@ -424,7 +424,7 @@
         {#if currentChat}
         <div class="w-full h-16 flex items-center justify-between">
             <div class="flex items-center gap-2">
-                <UserAvatar size={44} urlPromise={getChatCover(currentChat.chatCover, socket.attachmentHandler)} />
+                <Cover size={44} urlPromise={getChatCover(currentChat.chatCover, socket.attachmentHandler)} />
                 <h1 class="text-xl">{currentChat.displayName}</h1>
             </div>
 
@@ -457,7 +457,7 @@
     <div class="w-80 mt-24 p-4 shadow-lg flex flex-col gap-2">
         <div class="flex flex-col items-center gap-2 w-full p-4">            
             {#if currentChat.private}
-            <UserAvatar size={80} urlPromise={getChatCover(currentChat.chatCover, socket.attachmentHandler)} />
+            <Cover size={80} urlPromise={getChatCover(currentChat.chatCover, socket.attachmentHandler)} />
             <h1 class="hide-text-overflow">{currentChat.displayName}</h1>
             {:else}
             <EditableChatCover size={80} urlPromise={getChatCover(currentChat.chatCover, socket.attachmentHandler)} on:click={editChatCover} />
@@ -485,7 +485,7 @@
         <ListDropdown name="Nicknames">
             {#each currentChat.members as m (m.username)}
             <IconTextButton text={m.nickname??m.username} on:click={() => editNickname(m)}>
-                <UserAvatar urlPromise={getChatCover(m.username, socket.attachmentHandler)} size={28} />
+                <Cover urlPromise={getChatCover(m.username, socket.attachmentHandler)} size={28} />
             </IconTextButton>
             {/each}
         </ListDropdown>
