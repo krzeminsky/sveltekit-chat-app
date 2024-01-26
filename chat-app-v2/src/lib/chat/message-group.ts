@@ -13,7 +13,7 @@ export class MessageGroup {
 
     get lastMessage() { return this.messages[this.messages.length - 1] }
     get firstMessage() { return this.messages[0] }
-    get lastTimestamp() { return this.lastMessage.timestamp; }
+    get firstTimestamp() { return this.firstMessage.timestamp; }
 
     constructor(tree: ChatTree, message: Message) {
         this.tree = tree;

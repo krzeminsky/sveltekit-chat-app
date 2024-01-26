@@ -25,6 +25,7 @@
     import IconGradientButton from "$lib/components/ui/icon-gradient-button.svelte";
     import ChatMemberList from "$lib/components/chat/chat-member-list.svelte";
     import { showEditCoverDialog } from "$lib/components/dialog/controllers/show-edit-cover-dialog";
+    import ChatFeed from "$lib/components/refactored/chat/chat-feed.svelte";
 
     export let data: PageData;
 
@@ -431,11 +432,7 @@
             <IconButton src="icons/more.svg" alt="Switch chat options visibility" on:click={() => showChatOptions = !showChatOptions} />
         </div>
 
-        <div class="min-w-0 flex-grow flex flex-col-reverse gap-2 overflow-y-auto pr-1 overscroll-y-none" role="feed" bind:this={chatWindow} on:scroll={onChatScroll} on:dragover|preventDefault on:drop={onDrop}>            
-            {#each currentChat.messageGroups as group (group.id)}
-            <MessageGroup {group} attachmentHandler={socket.attachmentHandler} {socketUsername} on:deleteMessage />
-            {/each}
-        </div>
+        <ChatFeed attachmentHandler={socket.attachmentHandler} bind:view={currentChat} />
 
         <div class="w-full">
             <AttachmentList bind:attachments={includedAttachments} />
