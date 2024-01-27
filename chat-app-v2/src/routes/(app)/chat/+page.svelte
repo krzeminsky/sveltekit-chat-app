@@ -266,18 +266,24 @@
         }
     }
 
-    function onDrop(e: DragEvent) {                
-        e.preventDefault();
-        
-        if (e.dataTransfer) {
-            [...e.dataTransfer.items].forEach(i => {
-                if (i.kind == "file") {
-                    const file = i.getAsFile()!;
-                    includedAttachments.push(file);
-                }
-            }) 
+    function onDrop(e: CustomEvent<File[]>) {                
+        includedAttachments.push(...e.detail);
+        includedAttachments = includedAttachments;
+    }
 
-            includedAttachments = includedAttachments;
+    async function onChatHistoryRequest(e: CustomEvent<() => void>) {
+        const chat = currentChat as ChatTree;
+        
+        const messages = await socket.getMessages(chat.id, chat.count);
+        if (messages.length == 0) {
+            chat.hasFullHistory = true;
+            
+            return;
+        } else {
+            chat.insertMultiple(messages);
+            
+            currentChat = currentChat;
+            e.detail();
         }
     }
 
@@ -294,38 +300,6 @@
 
         includedAttachments = [];
         draftMessageValue = '';
-    }
-
-    async function onChatScroll() {
-        savedScrollTop = chatWindow.scrollTop;
-
-        if (pendingMessageRequest) return;
-
-        if ((chatWindow.scrollTop * -1 + chatWindow.clientHeight) == chatWindow.scrollHeight) {
-            const chat = currentChat as ChatTree; // temp chat is not scrollable
-
-            if (chat.hasFullHistory) return;
-
-            pendingMessageRequest = true;
-            const messages = await socket.getMessages(chat.id, chat.count);
-
-            if (messages.length == 0) {
-                chat.hasFullHistory = true;
-                pendingMessageRequest = false;
-                return;
-            } else {
-                const c = await getChat(chat.id);
-                if (!c) {
-                    console.error('Something went wrong while loading chat history!');
-                    return;
-                }
-
-                c.insertMultiple(messages);
-            }
-
-            currentChat = currentChat;
-            pendingMessageRequest = false;
-        }
     }
 
     function editChatName() {
@@ -432,7 +406,10 @@
             <IconButton src="icons/more.svg" alt="Switch chat options visibility" on:click={() => showChatOptions = !showChatOptions} />
         </div>
 
-        <ChatFeed attachmentHandler={socket.attachmentHandler} bind:view={currentChat} />
+        <ChatFeed attachmentHandler={socket.attachmentHandler} bind:view={currentChat} 
+            on:drop={onDrop}
+            on:historyRequest={onChatHistoryRequest}
+        />
 
         <div class="w-full">
             <AttachmentList bind:attachments={includedAttachments} />

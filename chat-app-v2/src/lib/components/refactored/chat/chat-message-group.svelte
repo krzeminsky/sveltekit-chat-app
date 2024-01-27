@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { MessageGroup } from "$lib/chat/message-group";
     import type { SocketAttachmentHandler } from "$lib/chat/socket-attachment-handler";
-    import UserAvatar from "$lib/components/user-avatar.svelte";
+    import Cover from "$lib/components/cover.svelte";
     import ChatMessage from "./messages/chat-message.svelte";
 
     export let group: MessageGroup;
@@ -19,7 +19,7 @@
     {/each}
 </div>
 {:else if socketIsOwner}
-<div class="w-full flex flex-col items-end">
+<div class="w-full flex flex-col gap-0.5 items-end">
     {#each group.messages as m (m.id)}
     <ChatMessage isSocketOwned={true} message={m} {attachmentHandler} />
     {/each}
@@ -27,10 +27,10 @@
 {:else}
 <div class="w-full flex">
     <div class="h-full flex align-bottom justify-center">
-        <UserAvatar size={32} urlPromise={attachmentHandler.getUserAvatar(group.username)} />
+        <Cover size={32} urlPromise={attachmentHandler.getUserAvatar(group.username)} />
     </div>
 
-    <div class="flex-1 flex flex-col gap-1">
+    <div class="flex-1 flex flex-col gap-0.5">
         <small class="w-fit text-gray-400">{groupOwnerNickname??group.username}</small>
 
         {#each group.messages as m (m.id)}
