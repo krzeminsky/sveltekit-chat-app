@@ -4,6 +4,7 @@ A simple chat app made with SvelteKit, Lucia, Socket.io and better-sqlite3
 ## Setup
 - Create a database.db file in /database directory, then run the setup.sql script. 
 - Create a /database/attachments directory.
+- Add your .cert and .key in /chat-app-v2/cert (or change the vite config to disable https)
 
 ## Features
 - Real-time messaging using WebSockets
