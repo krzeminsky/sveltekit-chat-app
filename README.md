@@ -16,6 +16,7 @@ A simple chat app made with SvelteKit, Lucia, Socket.io and better-sqlite3
 - Rate limiting using redis
 - Message reactions
 - Blocking users
+- Loading more chats in the left panel
 
 ### Notes
 - When running in preview mode, you'll get an error that says that SvelteKit couldn't resolve an url ("/api/attachments"), it's caused by using node's fetch instead of SvelteKit's. To fix it, implement a work-around using form actions or do some other shenanigans idk. Too lazy to fix it. The app works 100% in dev though.
