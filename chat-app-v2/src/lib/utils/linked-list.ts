@@ -68,60 +68,40 @@ export class LinkedList<T> {
         let current = this.first;
         while (current) {
             if (predicate(current.value)) return current.value;
+            current = current.next;
         }
     }
 
+    // ? modified by chat gpt
     delete(item: T) {
         let current = this.first;
         let previous: ListNode<T>|undefined;
-
+    
         while (current) {
             if (item == current.value) {
                 if (previous) {
                     previous.next = current.next;
                 }
-
+    
                 if (this.first == current) {
-                    if (this.count == 1) this.last = undefined; // ? this.first == this.last
-                    
-                    this.first = current.next; 
-                } else if (this.last == current) {
-                    this.last = undefined;
+                    this.first = current.next;
+    
+                    // Update this.last if the deleted node was the last node
+                    if (!current.next) {
+                        this.last = previous;
+                    }
                 }
-
+    
+                if (this.last == current) {
+                    // Update this.last if the deleted node was the last node
+                    this.last = previous;
+                }
+    
                 this.count--;
-                
+    
                 break;
             }
-
-            previous = current;
-            current = current.next;
-        }
-    }
-
-    deleteFirstMatch(predicate: (item: T) => boolean) {
-        let current = this.first;
-        let previous: ListNode<T>|undefined;
-
-        while (current) {
-            if (predicate(current.value)) {
-                if (previous) {
-                    previous.next = current.next;
-                }
-
-                if (this.first == current) {
-                    if (this.count == 1) this.last = undefined; // ? this.first == this.last
-                    
-                    this.first = current.next; 
-                } else if (this.last == current) {
-                    this.last = undefined;
-                }
-
-                this.count--;
-                
-                break;
-            }
-
+    
             previous = current;
             current = current.next;
         }

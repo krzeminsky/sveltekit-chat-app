@@ -4,7 +4,7 @@
     import type { PageData } from "../$types";
     import { io } from "socket.io-client";
     import { ChatTree, TempChat, type ChatView } from "$lib/chat/chat-view";
-    import type { ChatMember, SearchResult } from "$lib/chat/types";
+    import type { ChatMember, Message, SearchResult } from "$lib/chat/types";
     import ChatList from "$lib/components/chat/chat-list.svelte";
     import { ChatListWrapper } from "$lib/chat/chat-list-wrapper";
     import Cover from "$lib/components/cover.svelte";
@@ -358,6 +358,10 @@
             return chat;
         }
     }
+
+    function deleteMessage(ev: CustomEvent<number>) {
+        showConfirmDialog(dialog, "Delete message?", () => socket.deleteMessage(ev.detail));
+    }
 </script>
 
 <svelte:window on:focus={() => isTabFocused = true} on:blur={() => isTabFocused = false} />
@@ -383,7 +387,7 @@
         </div>
     </div>
 
-    <div class="relative flex-grow mt-14 flex flex-col p-4">
+    <div id="chat-container" class="relative flex-grow basis-0 mt-14 p-4">
         {#if currentChat}
         <div class="w-full h-16 flex items-center justify-between">
             <div class="flex items-center gap-2">
@@ -397,6 +401,7 @@
         <ChatFeed attachmentHandler={socket.attachmentHandler} bind:view={currentChat} 
             on:drop={onDrop}
             on:historyRequest={onChatHistoryRequest}
+            on:deleteMessage={deleteMessage}
         />
 
         <div class="w-full">
@@ -454,3 +459,10 @@
     </div>
     {/if}
 </div>
+
+<style>
+    #chat-container {
+        display: grid;
+        grid-template-rows: min-content 1fr min-content;
+    }
+</style>

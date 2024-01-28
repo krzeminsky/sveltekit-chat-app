@@ -147,7 +147,7 @@ export class ChatTree implements ChatView {
     }
 
     findGroupWithMessage(messageId: number) {
-        return this.messageGroupList.firstMatch(g => g.firstMessage.id <= messageId && g.lastMessage.id <= messageId);
+        return this.messageGroupList.firstMatch(g => g.firstMessage.id <= messageId && g.lastMessage.id >= messageId);
     }
 
     findMessage(messageId: number) {
@@ -160,7 +160,7 @@ export class ChatTree implements ChatView {
     deleteMessage(messageId: number) {
         // ? narrowing down the search list by filtering out groups that can't contain the message id
         const group = this.findGroupWithMessage(messageId);
-
+        
         // ? if group was found and after the deletion the group is empty
         if (group && group.delete(messageId)) this.messageGroupList.delete(group);
     }

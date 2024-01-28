@@ -71,10 +71,10 @@
     }
 </script>
 
-<div role="feed" class="min-w-0 flex-grow flex flex-col-reverse gap-2 overflow-y-auto pr-1 overflow-x-hidden" bind:this={chatFeedContainer} on:scroll={onScroll} on:drop={onDrop} on:dragover|preventDefault>
+<div role="feed" class="w-full min-w-0 flex flex-col-reverse gap-2 overflow-y-auto pr-1 overflow-x-hidden" bind:this={chatFeedContainer} on:scroll={onScroll} on:drop={onDrop} on:dragover|preventDefault>
     {#each messageGroups as group, i (group.id)}
 
-    <ChatMessageGroup {group} {attachmentHandler} />
+    <ChatMessageGroup {group} {attachmentHandler} on:deleteMessage />
 
     {@const timestamp = getTimestamp(i)}
     {#if timestamp}
