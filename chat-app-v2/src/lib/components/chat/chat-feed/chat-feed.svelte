@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { ChatView, ChatTree } from "$lib/chat/chat-view";
     import { createEventDispatcher } from "svelte";
-    import ChatMessageGroup from "../chat/chat-message-group.svelte";
+    import ChatMessageGroup from "./chat-message-group.svelte";
     import { formatRelativeDate } from "$lib/utils/format-relative-date";
     import type { SocketAttachmentHandler } from "$lib/chat/socket-attachment-handler";
 
@@ -24,7 +24,12 @@
         return null;
     }
 
-    async function onScroll() {
+    async function onScroll() { 
+        // ? weird glitch, where the scrollbar would go outside of it's scroll range
+        if (chatFeedContainer.scrollTop == 1) {
+            chatFeedContainer.scrollTop = 0;
+        }
+
         if (pendingHistoryRequest) {
             if (chatFeedContainer.scrollTop < savedScrollTop) {
                 chatFeedContainer.scrollTop = savedScrollTop;
@@ -34,7 +39,7 @@
             return;
         }
 
-        if ((chatFeedContainer.scrollTop * -1 + chatFeedContainer.clientHeight) == chatFeedContainer.scrollHeight) {
+        if ((chatFeedContainer.scrollTop * -1 + chatFeedContainer.clientHeight) >= chatFeedContainer.scrollHeight - 1) {
             const chat = view as ChatTree;
             if (chat.hasFullHistory) return;
 
@@ -66,7 +71,7 @@
     }
 </script>
 
-<div role="feed" class="min-w-0 flex-grow flex flex-col-reverse gap-2 overflow-y-auto pr-1 overscroll-y-none" on:scroll={onScroll} on:drop={onDrop} on:dragover|preventDefault bind:this={chatFeedContainer}>
+<div role="feed" class="min-w-0 flex-grow flex flex-col-reverse gap-2 overflow-y-auto pr-1 overflow-x-hidden" bind:this={chatFeedContainer} on:scroll={onScroll} on:drop={onDrop} on:dragover|preventDefault>
     {#each messageGroups as group, i (group.id)}
 
     <ChatMessageGroup {group} {attachmentHandler} />

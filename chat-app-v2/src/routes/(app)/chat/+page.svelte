@@ -1,6 +1,6 @@
 <script lang="ts">
     import { SocketWrapper } from "$lib/chat/socket-wrapper";
-    import { afterUpdate, onDestroy, onMount } from "svelte";
+    import { onDestroy, onMount } from "svelte";
     import type { PageData } from "../$types";
     import { io } from "socket.io-client";
     import { ChatTree, TempChat, type ChatView } from "$lib/chat/chat-view";
@@ -9,7 +9,6 @@
     import { ChatListWrapper } from "$lib/chat/chat-list-wrapper";
     import Cover from "$lib/components/cover.svelte";
     import { getChatCover } from "$lib/utils/get-chat-cover";
-    import MessageGroup from "$lib/components/chat/message-group.svelte";
     import AttachmentList from "$lib/components/chat/attachment-list.svelte";
     import Search from "$lib/components/utils/search.svelte";
     import EditableChatCover from "$lib/components/utils/editable-chat-cover.svelte";
@@ -25,7 +24,7 @@
     import IconGradientButton from "$lib/components/ui/icon-gradient-button.svelte";
     import ChatMemberList from "$lib/components/chat/chat-member-list.svelte";
     import { showEditCoverDialog } from "$lib/components/dialog/controllers/show-edit-cover-dialog";
-    import ChatFeed from "$lib/components/refactored/chat/chat-feed.svelte";
+    import ChatFeed from "$lib/components/chat/chat-feed/chat-feed.svelte";
 
     export let data: PageData;
 
@@ -39,10 +38,6 @@
 
     let includedAttachments: File[] = [];
     let draftMessageValue = '';
-
-    let chatWindow: HTMLElement;
-    let savedScrollTop = 0;
-    let pendingMessageRequest = false;
 
     let chatSearchValue: string;
     let chatSearchResults: SearchResult;
@@ -203,13 +198,6 @@
     onDestroy(() => {
         socket.dispose();
     });
-
-    afterUpdate(() => {
-        if (chatWindow) {
-            chatWindow.scrollTop = savedScrollTop;
-            chatWindow = chatWindow;
-        }
-    })
 
     async function getChat(target: number|string) {        
         if (typeof target === "string") {
@@ -428,7 +416,7 @@
     </div>
 
     {#if showChatOptions && currentChat}
-    <div class="w-80 mt-24 p-4 shadow-lg flex flex-col gap-2">
+    <div class="w-80 mt-24 p-4 flex-shrink-0 shadow-lg flex flex-col gap-2">
         <div class="flex flex-col items-center gap-2 w-full p-4">            
             {#if currentChat.private}
             <Cover size={80} urlPromise={getChatCover(currentChat.chatCover, socket.attachmentHandler)} />
